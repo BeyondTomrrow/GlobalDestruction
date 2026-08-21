@@ -13,7 +13,7 @@ public class LogisticsSystem : ISystem
 
     public void Update(World world, GameTime gameTime)
     {
-        double dtSeconds = gameTime.ElapsedGameTime.TotalSeconds;
+        double dtSeconds = gameTime.ElapsedGameTime.TotalSeconds * Core.SimulationClock.TimeScale;
 
         foreach (var (unit, logistics, position, ownership) in world.Query<LogisticsComponent, PositionComponent, OwnershipComponent>())
         {

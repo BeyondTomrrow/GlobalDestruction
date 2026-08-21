@@ -41,6 +41,9 @@ public static class UnitFactory
                 IsNuclear = def.IsNuclearCapable
             });
 
+        if (def.MaxSpeedKmh > 0)
+            world.Set(e, new MovementComponent { MaxSpeedKmh = def.MaxSpeedKmh });
+
         return e;
     }
 

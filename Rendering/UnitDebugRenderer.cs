@@ -4,6 +4,7 @@ using WorldNMilSim.Core;
 using WorldNMilSim.Components;
 using WorldNMilSim.Map;
 using System.Collections.Generic;
+using System;
 
 namespace WorldNMilSim.Rendering;
 
@@ -12,6 +13,8 @@ public class UnitDebugRenderer
     private readonly Dictionary<UnitType, Texture2D> _icons;
     private readonly int _mapWidth;
     private readonly int _mapHeight;
+    private readonly Texture2D _selectionRingTexture;
+    private readonly Texture2D _pixel;
 
     private static readonly Dictionary<UnitType, IconShape> ShapeByType = new()
     {
@@ -38,6 +41,10 @@ public class UnitDebugRenderer
         _icons = new Dictionary<UnitType, Texture2D>();
         foreach (var (type, shape) in ShapeByType)
             _icons[type] = ShapeTextures.Create(graphicsDevice, shape);
+
+        _selectionRingTexture = ShapeTextures.Create(graphicsDevice, IconShape.RingOutline);
+        _pixel = new Texture2D(graphicsDevice, 1, 1);
+        _pixel.SetData(new[] { Color.White });
     }
 
     public void Draw(SpriteBatch spriteBatch, World world, Entity viewingFaction, bool showAllUnits = false)
@@ -73,5 +80,34 @@ public class UnitDebugRenderer
             spriteBatch.Draw(texture, pos, null, backingColor * alpha, 0f, origin, scale * 1.3f, SpriteEffects.None, 0f);
             spriteBatch.Draw(texture, pos, null, color * alpha, 0f, origin, scale, SpriteEffects.None, 0f);
         }
+    }
+
+    public void DrawSelection(SpriteBatch spriteBatch, World world, Entity? selectedUnit)
+    {
+        if (!selectedUnit.HasValue || !world.IsAlive(selectedUnit.Value)) return;
+
+        var position = world.Get<PositionComponent>(selectedUnit.Value);
+        if (position == null) return;
+
+        var pos = GeoMath.Project(position.Latitude, position.Longitude);
+        var origin = new Vector2(_selectionRingTexture.Width / 2f, _selectionRingTexture.Height / 2f);
+        float scale = 26f / _selectionRingTexture.Width;
+
+        spriteBatch.Draw(_selectionRingTexture, pos, null, Color.Yellow, 0f, origin, scale, SpriteEffects.None, 0f);
+
+        var order = world.Get<MoveOrderComponent>(selectedUnit.Value);
+        if (order != null)
+        {
+            var targetPos = GeoMath.Project(order.TargetLatitude, order.TargetLongitude);
+            DrawLine(spriteBatch, pos, targetPos, Color.Yellow * 0.6f, 2f);
+        }
+    }
+
+    private void DrawLine(SpriteBatch spriteBatch, Vector2 start, Vector2 end, Color color, float thickness)
+    {
+        var delta = end - start;
+        float length = delta.Length();
+        float angle = (float)Math.Atan2(delta.Y, delta.X);
+        spriteBatch.Draw(_pixel, start, null, color, angle, Vector2.Zero, new Vector2(length, thickness), SpriteEffects.None, 0f);
     }
 }

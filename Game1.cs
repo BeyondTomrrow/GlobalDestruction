@@ -33,6 +33,10 @@ public class Game1 : Game
 
     private PostProcessPipeline _postProcess;
 
+    private Entity? _selectedUnit;
+
+    private const float TimeScale = 300f; // 1 real second = 5 in game minutes
+
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
@@ -42,7 +46,7 @@ public class Game1 : Game
 
         _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
         _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
-        _graphics.IsFullScreen = true;
+        _graphics.IsFullScreen = false;
         _graphics.HardwareModeSwitch = false; // borderless-style fullscreen at desktop res, avoids display-mode-switch flicker/alt-tab issues
         _graphics.ApplyChanges();
     }
@@ -57,10 +61,13 @@ public class Game1 : Game
         _world.Set(_playerFaction, new FactionComponent { Name = "United Coalition", Color = Color.CornflowerBlue, IsPlayerControlled = true });
 
         _world.Get<OwnershipComponent>(_territories["na_east"])!.Owner = _playerFaction;
+        _world.Get<OwnershipComponent>(_territories["na_west"])!.Owner = _playerFaction;
 
         UnitFactory.SpawnAtTerritory(_world, "silo", _playerFaction, _territories["na_east"]);
         UnitFactory.SpawnAtTerritory(_world, "radar_station", _playerFaction, _territories["na_east"]);
+        UnitFactory.SpawnAtTerritory(_world, "airbase", _playerFaction, _territories["na_west"]);
         UnitFactory.Spawn(_world, "submarine", _playerFaction, 35, -60); // mid-Atlantic patrol
+        UnitFactory.Spawn(_world, "carrier", _playerFaction, 28, -45);
 
         // Rival faction, for testing detection/fog-of-war
         var rivalFaction = _world.CreateEntity();
@@ -68,11 +75,13 @@ public class Game1 : Game
 
         _world.Get<OwnershipComponent>(_territories["e_europe"])!.Owner = rivalFaction;
         UnitFactory.SpawnAtTerritory(_world, "silo", rivalFaction, _territories["e_europe"]);
-        UnitFactory.Spawn(_world, "destroyer", rivalFaction, 33, -55); // close to your submarine, to test detection ranges
+        UnitFactory.Spawn(_world, "destroyer", rivalFaction, 33, -42); // close to your submarine, to test detection ranges
 
         _systems = new SystemManager()
+            .Add(new MovementSystem())
             .Add(new LogisticsSystem())
-            .Add(new DetectionSystem());
+            .Add(new DetectionSystem())
+            .Add(new CombatSystem());
 
         base.Initialize();
     }
@@ -122,6 +131,11 @@ public class Game1 : Game
         if (keyboardState.IsKeyDown(Keys.Tab) && !_previousKeyboardState.IsKeyDown(Keys.Tab))
             _debugShowAllUnits = !_debugShowAllUnits;
 
+        if (mouseState.LeftButton == ButtonState.Pressed && _previousMouseState.LeftButton == ButtonState.Released)
+        {
+            HandleLeftClick(new Vector2(mouseState.X, mouseState.Y));
+        }
+
         _previousMouseState = mouseState;
         _previousKeyboardState = keyboardState;
 
@@ -144,6 +158,7 @@ public class Game1 : Game
             _spriteBatch.Begin(transformMatrix: _camera.GetViewMatrix(), samplerState: SamplerState.LinearClamp);
             _mapRenderer.Draw(_spriteBatch, _world);
             _unitRenderer.Draw(_spriteBatch, _world, _playerFaction, _debugShowAllUnits);
+            _unitRenderer.DrawSelection(_spriteBatch, _world, _selectedUnit);
             _spriteBatch.End();
         }
 
@@ -155,5 +170,39 @@ public class Game1 : Game
         _spriteBatch.End();
 
         base.Draw(gameTime);
+    }
+
+    private void HandleLeftClick(Vector2 screenPosition)
+    {
+        const float selectRadiusPixels = 18f;
+
+        Entity? clickedUnit = null;
+        float closestDist = selectRadiusPixels;
+
+        foreach (var (entity, unit, position, ownership) in _world.Query<UnitComponent, PositionComponent, OwnershipComponent>())
+        {
+            if (ownership.Owner != _playerFaction) continue;
+
+            var unitScreenPos = _camera.WorldToScreen(GeoMath.Project(position.Latitude, position.Longitude));
+            float dist = Vector2.Distance(unitScreenPos, screenPosition);
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                clickedUnit = entity;
+            }
+        }
+
+        if (clickedUnit.HasValue)
+        {
+            _selectedUnit = _selectedUnit == clickedUnit ? null : clickedUnit;
+            return;
+        }
+
+        if (_selectedUnit.HasValue && _world.Has<MovementComponent>(_selectedUnit.Value))
+        {
+            var worldPos = _camera.ScreenToWorld(screenPosition);
+            var (lat, lon) = GeoMath.Unproject(worldPos);
+            _world.Set(_selectedUnit.Value, new MoveOrderComponent { TargetLatitude = lat, TargetLongitude = lon });
+        }
     }
 }
