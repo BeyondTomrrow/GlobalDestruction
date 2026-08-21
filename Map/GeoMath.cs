@@ -21,10 +21,10 @@ public static class GeoMath
     private static double ToRad(double deg) => deg * Math.PI / 180.0;
 
     // Simple equirectangular projection - good enough until/unless we want a fancier map projection.
-    public static Vector2 Project(double latitude, double longitude, int mapWidth, int mapHeight)
-    {
-        float x = (float)((longitude + 180.0) / 360.0 * mapWidth);
-        float y = (float)((90.0 - latitude) / 180.0 * mapHeight);
-        return new Vector2(x, y);
-    }
+    public static Vector2 Project(double latitude, double longitude)
+{
+    float x = (float)((longitude + 180.0) / 360.0 * MapSpace.WIDTH);
+    float y = (float)((90.0 - latitude) / 180.0 * MapSpace.HEIGHT);
+    return new Vector2(x, y);
+}
 }

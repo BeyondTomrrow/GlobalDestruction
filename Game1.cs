@@ -1,13 +1,13 @@
-﻿using System.Collections.Generic;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using WorldNMilSim.Components;
 using WorldNMilSim.Core;
+using WorldNMilSim.Components;
 using WorldNMilSim.Map;
-using WorldNMilSim.Rendering;
-using WorldNMilSim.Systems;
 using WorldNMilSim.Units;
+using WorldNMilSim.Systems;
+using WorldNMilSim.Rendering;
+using System.Collections.Generic;
 
 namespace WorldNMilSim;
 
@@ -15,28 +15,36 @@ public class Game1 : Game
 {
     private GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch;
-
     private Texture2D _worldMapTexture;
-
-    private SystemManager _systems;
-    private Entity _playerFaction;
+    private SpriteFont _font;
 
     private World _world;
     private Dictionary<string, Entity> _territories;
     private MapDebugRenderer _mapRenderer;
     private UnitDebugRenderer _unitRenderer;
+    private Camera2D _camera;
 
-    private bool _debugShowAllUnits = false; 
+    private SystemManager _systems;
+    private Entity _playerFaction;
+
+    private bool _debugShowAllUnits;
+    private MouseState _previousMouseState;
     private KeyboardState _previousKeyboardState;
+
+    private PostProcessPipeline _postProcess;
 
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
-        _graphics.PreferredBackBufferWidth = 1800;
-        _graphics.PreferredBackBufferHeight = 900;
-        _graphics.ApplyChanges();
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
+        Window.AllowUserResizing = true;
+
+        _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+        _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+        _graphics.IsFullScreen = true;
+        _graphics.HardwareModeSwitch = false; // borderless-style fullscreen at desktop res, avoids display-mode-switch flicker/alt-tab issues
+        _graphics.ApplyChanges();
     }
 
     protected override void Initialize()
@@ -44,28 +52,23 @@ public class Game1 : Game
         _world = new World();
         _territories = MapBuilder.Build(_world);
 
+        // Player faction
         _playerFaction = _world.CreateEntity();
-        var rivalFaction = _world.CreateEntity();
-
         _world.Set(_playerFaction, new FactionComponent { Name = "United Coalition", Color = Color.CornflowerBlue, IsPlayerControlled = true });
 
-        //Enemy
-        _world.Set(rivalFaction, new FactionComponent { Name = "Red Bloc", Color = Color.OrangeRed, IsPlayerControlled = false });
-
         _world.Get<OwnershipComponent>(_territories["na_east"])!.Owner = _playerFaction;
-        _world.Get<OwnershipComponent>(_territories["e_europe"])!.Owner = rivalFaction;
-
-
 
         UnitFactory.SpawnAtTerritory(_world, "silo", _playerFaction, _territories["na_east"]);
         UnitFactory.SpawnAtTerritory(_world, "radar_station", _playerFaction, _territories["na_east"]);
-        var sub = UnitFactory.Spawn(_world, "submarine", _playerFaction, 35, -60); // mid atlantic(ish)
+        UnitFactory.Spawn(_world, "submarine", _playerFaction, 35, -60); // mid-Atlantic patrol
 
-        //Enemy 
+        // Rival faction, for testing detection/fog-of-war
+        var rivalFaction = _world.CreateEntity();
+        _world.Set(rivalFaction, new FactionComponent { Name = "Red Bloc", Color = Color.OrangeRed, IsPlayerControlled = false });
+
+        _world.Get<OwnershipComponent>(_territories["e_europe"])!.Owner = rivalFaction;
         UnitFactory.SpawnAtTerritory(_world, "silo", rivalFaction, _territories["e_europe"]);
-        
-        UnitFactory.Spawn(_world, "destroyer", rivalFaction, 33, -55);
-
+        UnitFactory.Spawn(_world, "destroyer", rivalFaction, 33, -55); // close to your submarine, to test detection ranges
 
         _systems = new SystemManager()
             .Add(new LogisticsSystem())
@@ -77,34 +80,80 @@ public class Game1 : Game
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
-        _mapRenderer = new MapDebugRenderer(GraphicsDevice, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
-        _unitRenderer = new UnitDebugRenderer(GraphicsDevice, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         _worldMapTexture = Content.Load<Texture2D>("world_map");
+        _font = Content.Load<SpriteFont>("MapFont");
+        var mapStylizeEffect = Content.Load<Effect>("MapStylize");
+        var blurEffect = Content.Load<Effect>("Blur");
+        var finalCompositeEffect = Content.Load<Effect>("FinalComposite");
+
+        _postProcess = new PostProcessPipeline(GraphicsDevice, _spriteBatch, mapStylizeEffect, blurEffect, finalCompositeEffect);
+        _mapRenderer = new MapDebugRenderer(GraphicsDevice);
+        _unitRenderer = new UnitDebugRenderer(GraphicsDevice);
+        _camera = new Camera2D(GraphicsDevice);
+
     }
 
     protected override void Update(GameTime gameTime)
     {
-        _systems.Update(_world, gameTime);
-
+        var mouseState = Mouse.GetState();
         var keyboardState = Keyboard.GetState();
-        if(keyboardState.IsKeyDown(Keys.Tab) && !_previousKeyboardState.IsKeyDown(Keys.Tab))
+
+        int scrollDelta = mouseState.ScrollWheelValue - _previousMouseState.ScrollWheelValue;
+        if (scrollDelta != 0)
+        {
+            float zoomMultiplier = scrollDelta > 0 ? 1.1f : 0.9f;
+            _camera.ZoomAt(zoomMultiplier, new Vector2(mouseState.X, mouseState.Y));
+        }
+
+        if (mouseState.RightButton == ButtonState.Pressed && _previousMouseState.RightButton == ButtonState.Pressed)
+        {
+            var screenDelta = new Vector2(mouseState.X - _previousMouseState.X, mouseState.Y - _previousMouseState.Y);
+            _camera.Pan(-screenDelta / _camera.ZoomLevel);
+        }
+
+        float panSpeed = 600f * (float)gameTime.ElapsedGameTime.TotalSeconds / _camera.ZoomLevel;
+        var keyPan = Vector2.Zero;
+        if (keyboardState.IsKeyDown(Keys.Left)) keyPan.X -= panSpeed;
+        if (keyboardState.IsKeyDown(Keys.Right)) keyPan.X += panSpeed;
+        if (keyboardState.IsKeyDown(Keys.Up)) keyPan.Y -= panSpeed;
+        if (keyboardState.IsKeyDown(Keys.Down)) keyPan.Y += panSpeed;
+        if (keyPan != Vector2.Zero) _camera.Pan(keyPan);
+
+        if (keyboardState.IsKeyDown(Keys.Tab) && !_previousKeyboardState.IsKeyDown(Keys.Tab))
             _debugShowAllUnits = !_debugShowAllUnits;
+
+        _previousMouseState = mouseState;
         _previousKeyboardState = keyboardState;
+
+        _systems.Update(_world, gameTime);
 
         base.Update(gameTime);
     }
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(Color.Black);
+        void DrawMapLayer(Effect effect)
+        {
+            _spriteBatch.Begin(effect: effect, transformMatrix: _camera.GetViewMatrix(), samplerState: SamplerState.LinearClamp);
+            _spriteBatch.Draw(_worldMapTexture, new Rectangle(0, 0, MapSpace.WIDTH, MapSpace.HEIGHT), Color.White);
+            _spriteBatch.End();
+        }
 
+        void DrawUiLayer()
+        {
+            _spriteBatch.Begin(transformMatrix: _camera.GetViewMatrix(), samplerState: SamplerState.LinearClamp);
+            _mapRenderer.Draw(_spriteBatch, _world);
+            _unitRenderer.Draw(_spriteBatch, _world, _playerFaction, _debugShowAllUnits);
+            _spriteBatch.End();
+        }
+
+        _postProcess.Render(DrawMapLayer, DrawUiLayer);
+
+        // Labels drawn last, directly to the backbuffer - stays crisp, not blurred/vignetted.
         _spriteBatch.Begin();
-
-        var destRect = new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
-        _spriteBatch.Draw(_worldMapTexture, destRect, Color.White);
-
-        _mapRenderer.Draw(_spriteBatch, _world);
-        _unitRenderer.Draw(_spriteBatch, _world, _playerFaction, _debugShowAllUnits);
+        _mapRenderer.DrawLabels(_spriteBatch, _world, _camera, _font);
         _spriteBatch.End();
+
+        base.Draw(gameTime);
     }
 }

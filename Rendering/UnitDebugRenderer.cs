@@ -33,11 +33,8 @@ public class UnitDebugRenderer
         [UnitType.Carrier] = 18,
     };
 
-    public UnitDebugRenderer(GraphicsDevice graphicsDevice, int mapWidth, int mapHeight)
+    public UnitDebugRenderer(GraphicsDevice graphicsDevice) // drop mapWidth, mapHeight params
     {
-        _mapWidth = mapWidth;
-        _mapHeight = mapHeight;
-
         _icons = new Dictionary<UnitType, Texture2D>();
         foreach (var (type, shape) in ShapeByType)
             _icons[type] = ShapeTextures.Create(graphicsDevice, shape);
@@ -57,7 +54,7 @@ public class UnitDebugRenderer
                 if (!isDetected && !showAllUnits) continue; // fog of war
             }
 
-            var pos = GeoMath.Project(position.Latitude, position.Longitude, _mapWidth, _mapHeight);
+            var pos = GeoMath.Project(position.Latitude, position.Longitude);
             var texture = _icons[unit.Type];
             int displaySize = SizeByType[unit.Type];
             float scale = displaySize / (float)texture.Width;
