@@ -7,4 +7,6 @@ public class FactionComponent
     public required string Name;
     public Color Color;
     public bool IsPlayerControlled;
+    public int TotalCasualtiesInflicted;
+    public int TotalCasualtiesSuffered;
 }

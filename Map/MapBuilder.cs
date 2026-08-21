@@ -27,14 +27,6 @@ public static class MapBuilder
             world.Set(e, new OwnershipComponent { Owner = null });
             world.Set(e, new AdjacencyComponent());
 
-            if (def.Kind == TerritoryKind.Land && def.MaxPopulation > 0)
-            {
-                world.Set(e, new PopulationComponent
-                {
-                    MaxPopulation = def.MaxPopulation,
-                    CurrentPopulation = def.MaxPopulation
-                });
-            }
 
             lookup[def.Id] = e;
         }

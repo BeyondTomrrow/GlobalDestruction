@@ -12,7 +12,7 @@ public class MapDebugRenderer
 {
     private readonly Texture2D _pixel;
 
-    private const double MajorCityPopulationThreshold = 80;
+    private const double MajorCityPopulationThreshold = 45;
 
     public MapDebugRenderer(GraphicsDevice graphicsDevice)
     {
@@ -47,6 +47,14 @@ public class MapDebugRenderer
             int size = territory.Kind == TerritoryKind.Land ? 10 : 6;
             spriteBatch.Draw(_pixel, new Rectangle((int)pos.X - size / 2, (int)pos.Y - size / 2, size, size), color);
         }
+
+        foreach (var (entity, city, position) in world.Query<CityComponent, PositionComponent>())
+        {
+            if (city.IsCapital) continue;
+
+            var pos = GeoMath.Project(position.Latitude, position.Longitude);
+            spriteBatch.Draw(_pixel, new Rectangle((int)pos.X - 3, (int)pos.Y - 3, 6, 6), Color.LightGray);
+        }
     }
 
     // Screen-space pass: text labels at a constant on-screen size regardless of zoom.
@@ -55,20 +63,18 @@ public class MapDebugRenderer
     {
         bool zoomedIn = camera.ZoomLevel > camera.FitZoom * 2f;
 
-        foreach (var (entity, territory) in world.Query<TerritoryComponent>())
+        foreach (var (entity, city, position, population) in world.Query<CityComponent, PositionComponent, PopulationComponent>())
         {
-            if (territory.Kind != TerritoryKind.Land) continue;
+            bool isMajor = population.MaxPopulation >= MajorCityPopulationThreshold;
+            if (!zoomedIn && !isMajor) continue;
 
-            var population = world.Get<PopulationComponent>(entity);
-            bool isMajor = population != null && population.MaxPopulation >= MajorCityPopulationThreshold;
-
-            if (!zoomedIn && !isMajor) continue; // zoomed out: only label major cities
-
-            var screenPos = camera.WorldToScreen(GeoMath.Project(territory.Latitude, territory.Longitude));
+            var screenPos = camera.WorldToScreen(GeoMath.Project(position.Latitude, position.Longitude));
             var textPos = screenPos + new Vector2(10, -font.LineSpacing / 2f);
 
-            spriteBatch.DrawString(font, territory.Name, textPos + Vector2.One, Color.Black * 0.7f);
-            spriteBatch.DrawString(font, territory.Name, textPos, Color.White);
+            string labelText = $"{city.Name} ({population.CurrentPopulation})";
+
+            spriteBatch.DrawString(font, labelText, textPos + Vector2.One, Color.Black * 0.7f);
+            spriteBatch.DrawString(font, labelText, textPos, Color.White);
         }
     }
 

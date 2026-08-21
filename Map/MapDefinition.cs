@@ -3,7 +3,7 @@ using WorldNMilSim.Components;
 
 namespace WorldNMilSim.Map;
 
-public record TerritoryDef(string Id, string Name, TerritoryKind Kind, double Latitude, double Longitude, int MaxPopulation = 0);
+public record TerritoryDef(string Id, string Name, TerritoryKind Kind, double Latitude, double Longitude);
 public record RouteDef(string FromId, string ToId, RouteKind Kind);
 
 public static class MapDefinition
@@ -12,20 +12,20 @@ public static class MapDefinition
     {
       
         // Land regions - anchored to each region's largest/capital city
-        new("na_west",     "North America - West",   TerritoryKind.Land,  39.74,  -104.99, 60),  // Denver
-        new("na_east",     "North America - East",   TerritoryKind.Land,  38.91,   -77.04, 90),  // Washington D.C.
-        new("s_america",   "South America",          TerritoryKind.Land, -15.83,   -47.92, 70),  // Brasilia
-        new("w_europe",    "Western Europe",         TerritoryKind.Land,  48.86,     2.35, 80),  // Paris
-        new("e_europe",    "Eastern Europe",         TerritoryKind.Land,  55.76,    37.62, 60),  // Moscow
-        new("siberia",     "Siberia",                TerritoryKind.Land,  55.01,    82.94, 15),  // Novosibirsk
-        new("middle_east", "Middle East",            TerritoryKind.Land,  33.32,    44.37, 40),  // Baghdad
-        new("n_africa",    "North Africa",           TerritoryKind.Land,  30.04,    31.24, 30),  // Cairo
-        new("ssa_africa",  "Sub-Saharan Africa",     TerritoryKind.Land,  -4.44,    15.27, 50),  // Kinshasa
-        new("s_asia",      "South Asia",             TerritoryKind.Land,  28.61,    77.21, 140), // New Delhi
-        new("e_asia",      "East Asia",              TerritoryKind.Land,  39.90,   116.41, 140), // Beijing
-        new("se_asia",     "Southeast Asia",         TerritoryKind.Land,  13.76,   100.50, 65),  // Bangkok
-        new("oceania",     "Oceania",                TerritoryKind.Land, -33.87,   151.21, 20),  // Sydney
-        new("central_america", "Central America",    TerritoryKind.Land, 19.43, -99.13, 45), // Mexico City
+        new("na_west",     "North America - West",   TerritoryKind.Land,  39.74,  -104.99 ),  // Denver
+        new("na_east",     "North America - East",   TerritoryKind.Land,  38.91,   -77.04 ),  // Washington D.C.
+        new("s_america",   "South America",          TerritoryKind.Land, -15.83,   -47.92 ),  // Brasilia
+        new("w_europe",    "Western Europe",         TerritoryKind.Land,  48.86,     2.35),  // Paris
+        new("e_europe",    "Eastern Europe",         TerritoryKind.Land,  55.76,    37.62),  // Moscow
+        new("siberia",     "Siberia",                TerritoryKind.Land,  55.01,    82.94),  // Novosibirsk
+        new("middle_east", "Middle East",            TerritoryKind.Land,  33.32,    44.37),  // Baghdad
+        new("n_africa",    "North Africa",           TerritoryKind.Land,  30.04,    31.24),  // Cairo
+        new("ssa_africa",  "Sub-Saharan Africa",     TerritoryKind.Land,  -4.44,    15.27),  // Kinshasa
+        new("s_asia",      "South Asia",             TerritoryKind.Land,  28.61,    77.21), // New Delhi
+        new("e_asia",      "East Asia",              TerritoryKind.Land,  39.90,   116.41), // Beijing
+        new("se_asia",     "Southeast Asia",         TerritoryKind.Land,  13.76,   100.50),  // Bangkok
+        new("oceania",     "Oceania",                TerritoryKind.Land, -33.87,   151.21),  // Sydney
+        new("central_america", "Central America",    TerritoryKind.Land, 19.43, -99.13), // Mexico City
 
         // Sea zones - kept as rough mid-ocean points, no city anchor needed
         new("sea_n_atlantic", "North Atlantic", TerritoryKind.Sea,  40,  -40),

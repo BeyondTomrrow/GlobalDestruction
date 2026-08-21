@@ -55,6 +55,7 @@ public class Game1 : Game
     {
         _world = new World();
         _territories = MapBuilder.Build(_world);
+        CityBuilder.Build(_world, _territories);
 
         // Player faction
         _playerFaction = _world.CreateEntity();
@@ -131,7 +132,25 @@ public class Game1 : Game
         if (keyboardState.IsKeyDown(Keys.Tab) && !_previousKeyboardState.IsKeyDown(Keys.Tab))
             _debugShowAllUnits = !_debugShowAllUnits;
 
-        if (mouseState.LeftButton == ButtonState.Pressed && _previousMouseState.LeftButton == ButtonState.Released)
+        // in Update(), alongside the Tab toggle
+        if (keyboardState.IsKeyDown(Keys.K) && !_previousKeyboardState.IsKeyDown(Keys.K))
+        {
+            // TEMPORARY test hook - remove once nuclear strikes provide the real trigger.
+            foreach (var (cityEntity, city) in _world.Query<CityComponent>())
+            {
+                if (city.Name == "Moscow")
+                {
+                    CasualtyTracker.Apply(_world, cityEntity, 20, _playerFaction);
+                    break;
+                }
+            }
+        }
+
+        bool cursorInWindow = mouseState.X >= 0 && mouseState.X < GraphicsDevice.Viewport.Width &&
+                       mouseState.Y >= 0 && mouseState.Y < GraphicsDevice.Viewport.Height;
+
+        if (IsActive && cursorInWindow &&
+            mouseState.LeftButton == ButtonState.Pressed && _previousMouseState.LeftButton == ButtonState.Released)
         {
             HandleLeftClick(new Vector2(mouseState.X, mouseState.Y));
         }
