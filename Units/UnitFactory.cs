@@ -30,6 +30,7 @@ public static class UnitFactory
             world.Set(e, new SensorComponent { DetectionRadiusKm = def.DetectionRadiusKm });
 
         world.Set(e, new StealthComponent { SignatureFactor = def.StealthSignature });
+        world.Set(e, new DetectionComponent()); 
 
         if (def.WeaponRangeKm > 0)
             world.Set(e, new WeaponComponent

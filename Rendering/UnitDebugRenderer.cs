@@ -43,10 +43,20 @@ public class UnitDebugRenderer
             _icons[type] = ShapeTextures.Create(graphicsDevice, shape);
     }
 
-    public void Draw(SpriteBatch spriteBatch, World world)
+    public void Draw(SpriteBatch spriteBatch, World world, Entity viewingFaction, bool showAllUnits = false)
     {
         foreach (var (entity, unit, position, ownership) in world.Query<UnitComponent, PositionComponent, OwnershipComponent>())
         {
+            bool isOwn = ownership.Owner == viewingFaction;
+            bool isDetected = true;
+
+            if (!isOwn)
+            {
+                var detection = world.Get<DetectionComponent>(entity);
+                isDetected = detection != null && detection.DetectedByFactions.Contains(viewingFaction);
+                if (!isDetected && !showAllUnits) continue; // fog of war
+            }
+
             var pos = GeoMath.Project(position.Latitude, position.Longitude, _mapWidth, _mapHeight);
             var texture = _icons[unit.Type];
             int displaySize = SizeByType[unit.Type];
@@ -60,9 +70,11 @@ public class UnitDebugRenderer
                 if (factionInfo != null) color = factionInfo.Color;
             }
 
-            // Dark backing pass so icons stay readable against the busy satellite background.
-            spriteBatch.Draw(texture, pos, null, Color.Black * 0.6f, 0f, origin, scale * 1.3f, SpriteEffects.None, 0f);
-            spriteBatch.Draw(texture, pos, null, color, 0f, origin, scale, SpriteEffects.None, 0f);
+            float alpha = (!isOwn && !isDetected) ? 0.35f : 1f; // debug-only reveal fades out
+            var backingColor = isOwn ? Color.Black * 0.6f : Color.Red * 0.6f;
+
+            spriteBatch.Draw(texture, pos, null, backingColor * alpha, 0f, origin, scale * 1.3f, SpriteEffects.None, 0f);
+            spriteBatch.Draw(texture, pos, null, color * alpha, 0f, origin, scale, SpriteEffects.None, 0f);
         }
     }
 }

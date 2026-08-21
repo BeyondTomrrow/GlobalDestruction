@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Extended.Collections;
 
 namespace WorldNMilSim.Core;
@@ -82,6 +83,25 @@ public class World
 			}
 		}
 	}
+
+	public IEnumerable<(Entity, T1, T2, T3, T4)> Query<T1, T2, T3, T4>()
+    where T1 : class where T2 : class where T3 : class where T4 : class
+{
+    var poolA = Pool<T1>();
+    var poolB = Pool<T2>();
+    var poolC = Pool<T3>();
+    var poolD = Pool<T4>();
+    foreach (var kvp in poolA)
+    {
+        if (_alive.Contains(kvp.Key) &&
+            poolB.TryGetValue(kvp.Key, out var b) &&
+            poolC.TryGetValue(kvp.Key, out var c) &&
+            poolD.TryGetValue(kvp.Key, out var d))
+        {
+            yield return (new Entity(kvp.Key), (T1)kvp.Value, (T2)b, (T3)c, (T4)d);
+        }
+    }
+}
 
 	private Dictionary<int, object> Pool<T>()
 	{

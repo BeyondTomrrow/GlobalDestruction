@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using WorldNMilSim.Components;
 using WorldNMilSim.Core;
 using WorldNMilSim.Map;
@@ -12,8 +13,6 @@ namespace WorldNMilSim;
 
 public class Game1 : Game
 {
-
-
     private GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch;
 
@@ -26,6 +25,9 @@ public class Game1 : Game
     private Dictionary<string, Entity> _territories;
     private MapDebugRenderer _mapRenderer;
     private UnitDebugRenderer _unitRenderer;
+
+    private bool _debugShowAllUnits = false; 
+    private KeyboardState _previousKeyboardState;
 
     public Game1()
     {
@@ -43,17 +45,31 @@ public class Game1 : Game
         _territories = MapBuilder.Build(_world);
 
         _playerFaction = _world.CreateEntity();
+        var rivalFaction = _world.CreateEntity();
+
         _world.Set(_playerFaction, new FactionComponent { Name = "United Coalition", Color = Color.CornflowerBlue, IsPlayerControlled = true });
 
+        //Enemy
+        _world.Set(rivalFaction, new FactionComponent { Name = "Red Bloc", Color = Color.OrangeRed, IsPlayerControlled = false });
+
         _world.Get<OwnershipComponent>(_territories["na_east"])!.Owner = _playerFaction;
+        _world.Get<OwnershipComponent>(_territories["e_europe"])!.Owner = rivalFaction;
+
+
 
         UnitFactory.SpawnAtTerritory(_world, "silo", _playerFaction, _territories["na_east"]);
         UnitFactory.SpawnAtTerritory(_world, "radar_station", _playerFaction, _territories["na_east"]);
         var sub = UnitFactory.Spawn(_world, "submarine", _playerFaction, 35, -60); // mid atlantic(ish)
 
+        //Enemy 
+        UnitFactory.SpawnAtTerritory(_world, "silo", rivalFaction, _territories["e_europe"]);
+        
+        UnitFactory.Spawn(_world, "destroyer", rivalFaction, 33, -55);
+
 
         _systems = new SystemManager()
-            .Add(new LogisticsSystem());
+            .Add(new LogisticsSystem())
+            .Add(new DetectionSystem());
 
         base.Initialize();
     }
@@ -69,6 +85,12 @@ public class Game1 : Game
     protected override void Update(GameTime gameTime)
     {
         _systems.Update(_world, gameTime);
+
+        var keyboardState = Keyboard.GetState();
+        if(keyboardState.IsKeyDown(Keys.Tab) && !_previousKeyboardState.IsKeyDown(Keys.Tab))
+            _debugShowAllUnits = !_debugShowAllUnits;
+        _previousKeyboardState = keyboardState;
+
         base.Update(gameTime);
     }
 
@@ -82,7 +104,7 @@ public class Game1 : Game
         _spriteBatch.Draw(_worldMapTexture, destRect, Color.White);
 
         _mapRenderer.Draw(_spriteBatch, _world);
-        _unitRenderer.Draw(_spriteBatch, _world);
+        _unitRenderer.Draw(_spriteBatch, _world, _playerFaction, _debugShowAllUnits);
         _spriteBatch.End();
     }
 }
