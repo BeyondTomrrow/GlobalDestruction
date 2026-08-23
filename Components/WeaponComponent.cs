@@ -8,4 +8,5 @@ public class WeaponComponent
     public bool IsNuclear;
     public double RateOfFireSeconds;
     public double CooldownRemaining;
+    public double BlastRadiusKm;
 }

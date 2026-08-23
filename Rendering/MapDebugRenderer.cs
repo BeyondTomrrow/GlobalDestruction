@@ -20,7 +20,6 @@ public class MapDebugRenderer
         _pixel.SetData(new[] { Color.White });
     }
 
-    // World-space pass: dots and route lines. Draw inside a SpriteBatch using the camera's transform matrix.
     public void Draw(SpriteBatch spriteBatch, World world)
     {
         var drawnPairs = new HashSet<(int, int)>();
@@ -57,8 +56,7 @@ public class MapDebugRenderer
         }
     }
 
-    // Screen-space pass: text labels at a constant on-screen size regardless of zoom.
-    // Draw this in a SEPARATE SpriteBatch.Begin() with no transform matrix.
+   
     public void DrawLabels(SpriteBatch spriteBatch, World world, Camera2D camera, SpriteFont font)
     {
         bool zoomedIn = camera.ZoomLevel > camera.FitZoom * 2f;

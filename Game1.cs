@@ -13,6 +13,9 @@ namespace WorldNMilSim;
 
 public class Game1 : Game
 {
+
+    private readonly System.Random _random = new();
+    
     private GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch;
     private Texture2D _worldMapTexture;
@@ -34,8 +37,6 @@ public class Game1 : Game
     private PostProcessPipeline _postProcess;
 
     private Entity? _selectedUnit;
-
-    private const float TimeScale = 300f; // 1 real second = 5 in game minutes
 
     public Game1()
     {
@@ -65,7 +66,7 @@ public class Game1 : Game
         _world.Get<OwnershipComponent>(_territories["na_west"])!.Owner = _playerFaction;
 
         UnitFactory.SpawnAtTerritory(_world, "silo", _playerFaction, _territories["na_east"]);
-        UnitFactory.SpawnAtTerritory(_world, "radar_station", _playerFaction, _territories["na_east"]);
+        UnitFactory.SpawnAtTerritory(_world, "radar_station", _playerFaction, _territories["na_east"], radarFacingDegrees: 0);
         UnitFactory.SpawnAtTerritory(_world, "airbase", _playerFaction, _territories["na_west"]);
         UnitFactory.Spawn(_world, "submarine", _playerFaction, 35, -60); // mid-Atlantic patrol
         UnitFactory.Spawn(_world, "carrier", _playerFaction, 28, -45);
@@ -80,9 +81,11 @@ public class Game1 : Game
 
         _systems = new SystemManager()
             .Add(new MovementSystem())
+            .Add(new NuclearImpactSystem())
             .Add(new LogisticsSystem())
             .Add(new DetectionSystem())
-            .Add(new CombatSystem());
+            .Add(new CombatSystem())
+            .Add(new DecoySystem());
 
         base.Initialize();
     }
@@ -100,7 +103,6 @@ public class Game1 : Game
         _mapRenderer = new MapDebugRenderer(GraphicsDevice);
         _unitRenderer = new UnitDebugRenderer(GraphicsDevice);
         _camera = new Camera2D(GraphicsDevice);
-
     }
 
     protected override void Update(GameTime gameTime)
@@ -132,27 +134,67 @@ public class Game1 : Game
         if (keyboardState.IsKeyDown(Keys.Tab) && !_previousKeyboardState.IsKeyDown(Keys.Tab))
             _debugShowAllUnits = !_debugShowAllUnits;
 
-        // in Update(), alongside the Tab toggle
-        if (keyboardState.IsKeyDown(Keys.K) && !_previousKeyboardState.IsKeyDown(Keys.K))
+        if (keyboardState.IsKeyDown(Keys.P) && !_previousKeyboardState.IsKeyDown(Keys.P) && _selectedUnit.HasValue)
         {
-            // TEMPORARY test hook - remove once nuclear strikes provide the real trigger.
-            foreach (var (cityEntity, city) in _world.Query<CityComponent>())
+            var sensors = _world.Get<SensorsComponent>(_selectedUnit.Value);
+            if (sensors != null)
             {
-                if (city.Name == "Moscow")
+                foreach (var sensor in sensors.Sensors)
                 {
-                    CasualtyTracker.Apply(_world, cityEntity, 20, _playerFaction);
-                    break;
+                    if (sensor.Type == SensorType.Sonar)
+                        sensor.Mode = sensor.Mode == SonarMode.Passive ? SonarMode.Active : SonarMode.Passive;
                 }
             }
         }
 
+        if (keyboardState.IsKeyDown(Keys.E) && !_previousKeyboardState.IsKeyDown(Keys.E) && _selectedUnit.HasValue)
+        {
+            var unit = _selectedUnit.Value;
+            if (_world.Has<EmconComponent>(unit))
+            {
+                _world.Remove<EmconComponent>(unit);
+            }
+            else
+            {
+                _world.Set(unit, new EmconComponent());
+                var sensors = _world.Get<SensorsComponent>(unit);
+                if (sensors != null)
+                {
+                    foreach (var sensor in sensors.Sensors)
+                        if (sensor.Type == SensorType.Sonar)
+                            sensor.Mode = SonarMode.Passive; // can't ping while running dark
+                }
+
+                var jammer = _world.Get<JammerComponent>(unit);
+                if (jammer != null)
+                    jammer.IsActive = false; // can't jam while running dark
+            }
+        }
+
+        if (keyboardState.IsKeyDown(Keys.J) && !_previousKeyboardState.IsKeyDown(Keys.J) && _selectedUnit.HasValue)
+        {
+            var jammer = _world.Get<JammerComponent>(_selectedUnit.Value);
+            if (jammer != null)
+            {
+                jammer.IsActive = !jammer.IsActive;
+                if (jammer.IsActive)
+                    _world.Remove<EmconComponent>(_selectedUnit.Value); // can't run dark while actively broadcasting jamming noise
+            }
+        }
+
+        if (keyboardState.IsKeyDown(Keys.D) && !_previousKeyboardState.IsKeyDown(Keys.D) && _selectedUnit.HasValue)
+        {
+            DeployDecoy(_selectedUnit.Value);
+        }
+
         bool cursorInWindow = mouseState.X >= 0 && mouseState.X < GraphicsDevice.Viewport.Width &&
-                       mouseState.Y >= 0 && mouseState.Y < GraphicsDevice.Viewport.Height;
+                               mouseState.Y >= 0 && mouseState.Y < GraphicsDevice.Viewport.Height;
 
         if (IsActive && cursorInWindow &&
             mouseState.LeftButton == ButtonState.Pressed && _previousMouseState.LeftButton == ButtonState.Released)
         {
-            HandleLeftClick(new Vector2(mouseState.X, mouseState.Y));
+            bool nuclearModifier = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
+            HandleLeftClick(new Vector2(mouseState.X, mouseState.Y), nuclearModifier);
         }
 
         _previousMouseState = mouseState;
@@ -178,6 +220,9 @@ public class Game1 : Game
             _mapRenderer.Draw(_spriteBatch, _world);
             _unitRenderer.Draw(_spriteBatch, _world, _playerFaction, _debugShowAllUnits);
             _unitRenderer.DrawSelection(_spriteBatch, _world, _selectedUnit);
+            _unitRenderer.DrawIncomingStrikes(_spriteBatch, _world);
+            _unitRenderer.DrawRadarCones(_spriteBatch, _world, _playerFaction);
+            _unitRenderer.DrawJammingRadius(_spriteBatch, _world, _playerFaction);
             _spriteBatch.End();
         }
 
@@ -191,7 +236,7 @@ public class Game1 : Game
         base.Draw(gameTime);
     }
 
-    private void HandleLeftClick(Vector2 screenPosition)
+    private void HandleLeftClick(Vector2 screenPosition, bool nuclearStrikeModifier)
     {
         const float selectRadiusPixels = 18f;
 
@@ -217,11 +262,68 @@ public class Game1 : Game
             return;
         }
 
-        if (_selectedUnit.HasValue && _world.Has<MovementComponent>(_selectedUnit.Value))
+        if (!_selectedUnit.HasValue) return;
+
+        var worldPos = _camera.ScreenToWorld(screenPosition);
+        var (lat, lon) = GeoMath.Unproject(worldPos);
+
+        if (nuclearStrikeModifier)
         {
-            var worldPos = _camera.ScreenToWorld(screenPosition);
-            var (lat, lon) = GeoMath.Unproject(worldPos);
+            LaunchNuclearStrike(_selectedUnit.Value, lat, lon);
+            return;
+        }
+
+        if (_world.Has<MovementComponent>(_selectedUnit.Value))
+        {
             _world.Set(_selectedUnit.Value, new MoveOrderComponent { TargetLatitude = lat, TargetLongitude = lon });
         }
+    }
+
+    private void LaunchNuclearStrike(Entity launcher, double targetLat, double targetLon)
+    {
+        var weapon = _world.Get<WeaponComponent>(launcher);
+        var ownership = _world.Get<OwnershipComponent>(launcher);
+        var position = _world.Get<PositionComponent>(launcher);
+        var logistics = _world.Get<LogisticsComponent>(launcher);
+
+        if (weapon == null || !weapon.IsNuclear) return;
+        if (weapon.CooldownRemaining > 0) return;
+        if (logistics != null && logistics.Ammo < weapon.AmmoPerShot) return;
+        if (ownership?.Owner is not { } faction) return;
+        if (position == null) return;
+
+        if (logistics != null) logistics.Ammo -= weapon.AmmoPerShot;
+        weapon.CooldownRemaining = weapon.RateOfFireSeconds;
+
+        var missile = _world.CreateEntity();
+        _world.Set(missile, new PositionComponent { Latitude = position.Latitude, Longitude = position.Longitude });
+        _world.Set(missile, new MovementComponent { MaxSpeedKmh = 7500 });
+        _world.Set(missile, new MoveOrderComponent { TargetLatitude = targetLat, TargetLongitude = targetLon });
+        _world.Set(missile, new IncomingStrikeComponent
+        {
+            AttackerFaction = faction,
+            BlastRadiusKm = weapon.BlastRadiusKm,
+            MaxCasualties = weapon.Damage
+        });
+    }
+
+    private void DeployDecoy(Entity unit)
+    {
+        var launcher = _world.Get<DecoyLauncherComponent>(unit);
+        var position = _world.Get<PositionComponent>(unit);
+        var ownership = _world.Get<OwnershipComponent>(unit);
+        var unitInfo = _world.Get<UnitComponent>(unit);
+
+        if (launcher == null || position == null || unitInfo == null) return;
+        if (ownership?.Owner is not { } faction) return;
+        if (launcher.RemainingDecoys <= 0 || launcher.CooldownRemaining > 0) return;
+
+        launcher.RemainingDecoys--;
+        launcher.CooldownRemaining = launcher.CooldownSeconds;
+
+        double offsetLat = position.Latitude + (_random.NextDouble() * 2 - 1) * 0.3;
+        double offsetLon = position.Longitude + (_random.NextDouble() * 2 - 1) * 0.3;
+
+        DecoyFactory.Spawn(_world, faction, offsetLat, offsetLon, unitInfo.Domain);
     }
 }
