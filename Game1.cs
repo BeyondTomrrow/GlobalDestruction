@@ -13,9 +13,8 @@ namespace WorldNMilSim;
 
 public class Game1 : Game
 {
-
     private readonly System.Random _random = new();
-    
+
     private GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch;
     private Texture2D _worldMapTexture;
@@ -26,9 +25,11 @@ public class Game1 : Game
     private MapDebugRenderer _mapRenderer;
     private UnitDebugRenderer _unitRenderer;
     private Camera2D _camera;
+    private TerrainMap _terrainMap;
 
     private SystemManager _systems;
     private Entity _playerFaction;
+    private Entity _defconEntity;
 
     private bool _debugShowAllUnits;
     private MouseState _previousMouseState;
@@ -37,6 +38,9 @@ public class Game1 : Game
     private PostProcessPipeline _postProcess;
 
     private Entity? _selectedUnit;
+    private UnitType? _placementSelection;
+
+    private HudRenderer _hud;
 
     public Game1()
     {
@@ -58,34 +62,23 @@ public class Game1 : Game
         _territories = MapBuilder.Build(_world);
         CityBuilder.Build(_world, _territories);
 
-        // Player faction
+        _defconEntity = _world.CreateEntity();
+        _world.Set(_defconEntity, new DefconComponent());
+
+        // Player faction - no starting units, place everything yourself.
         _playerFaction = _world.CreateEntity();
         _world.Set(_playerFaction, new FactionComponent { Name = "United Coalition", Color = Color.CornflowerBlue, IsPlayerControlled = true });
+        _world.Set(_playerFaction, new PlacementBudgetComponent { Points = 500, RegenPerHour = 40 });
 
         _world.Get<OwnershipComponent>(_territories["na_east"])!.Owner = _playerFaction;
         _world.Get<OwnershipComponent>(_territories["na_west"])!.Owner = _playerFaction;
 
-        UnitFactory.SpawnAtTerritory(_world, "silo", _playerFaction, _territories["na_east"]);
-        UnitFactory.SpawnAtTerritory(_world, "radar_station", _playerFaction, _territories["na_east"], radarFacingDegrees: 0);
-        UnitFactory.SpawnAtTerritory(_world, "airbase", _playerFaction, _territories["na_west"]);
-        UnitFactory.Spawn(_world, "submarine", _playerFaction, 35, -60); // mid-Atlantic patrol
-        UnitFactory.Spawn(_world, "carrier", _playerFaction, 28, -45);
-
-        // Rival faction, for testing detection/fog-of-war
+        // Rival faction - AI-controlled, also starts with nothing and places its own force.
         var rivalFaction = _world.CreateEntity();
         _world.Set(rivalFaction, new FactionComponent { Name = "Red Bloc", Color = Color.OrangeRed, IsPlayerControlled = false });
+        _world.Set(rivalFaction, new PlacementBudgetComponent { Points = 500, RegenPerHour = 40 });
 
         _world.Get<OwnershipComponent>(_territories["e_europe"])!.Owner = rivalFaction;
-        UnitFactory.SpawnAtTerritory(_world, "silo", rivalFaction, _territories["e_europe"]);
-        UnitFactory.Spawn(_world, "destroyer", rivalFaction, 33, -42); // close to your submarine, to test detection ranges
-
-        _systems = new SystemManager()
-            .Add(new MovementSystem())
-            .Add(new NuclearImpactSystem())
-            .Add(new LogisticsSystem())
-            .Add(new DetectionSystem())
-            .Add(new CombatSystem())
-            .Add(new DecoySystem());
 
         base.Initialize();
     }
@@ -103,6 +96,19 @@ public class Game1 : Game
         _mapRenderer = new MapDebugRenderer(GraphicsDevice);
         _unitRenderer = new UnitDebugRenderer(GraphicsDevice);
         _camera = new Camera2D(GraphicsDevice);
+        _hud = new HudRenderer();
+        _terrainMap = new TerrainMap(_worldMapTexture);
+
+        _systems = new SystemManager()
+            .Add(new MovementSystem())
+            .Add(new NuclearImpactSystem())
+            .Add(new LogisticsSystem())
+            .Add(new DetectionSystem())
+            .Add(new CombatSystem())
+            .Add(new DecoySystem())
+            .Add(new ReinforcementSystem())
+            .Add(new DefconSystem())
+            .Add(new AiSystem(_terrainMap, _defconEntity));
     }
 
     protected override void Update(GameTime gameTime)
@@ -187,6 +193,14 @@ public class Game1 : Game
             DeployDecoy(_selectedUnit.Value);
         }
 
+        if (keyboardState.IsKeyDown(Keys.D1) && !_previousKeyboardState.IsKeyDown(Keys.D1)) _placementSelection = UnitType.Silo;
+        if (keyboardState.IsKeyDown(Keys.D2) && !_previousKeyboardState.IsKeyDown(Keys.D2)) _placementSelection = UnitType.RadarStation;
+        if (keyboardState.IsKeyDown(Keys.D3) && !_previousKeyboardState.IsKeyDown(Keys.D3)) _placementSelection = UnitType.Airbase;
+        if (keyboardState.IsKeyDown(Keys.D4) && !_previousKeyboardState.IsKeyDown(Keys.D4)) _placementSelection = UnitType.Destroyer;
+        if (keyboardState.IsKeyDown(Keys.D5) && !_previousKeyboardState.IsKeyDown(Keys.D5)) _placementSelection = UnitType.Submarine;
+        if (keyboardState.IsKeyDown(Keys.D6) && !_previousKeyboardState.IsKeyDown(Keys.D6)) _placementSelection = UnitType.Carrier;
+        if (keyboardState.IsKeyDown(Keys.Escape) && !_previousKeyboardState.IsKeyDown(Keys.Escape)) _placementSelection = null;
+
         bool cursorInWindow = mouseState.X >= 0 && mouseState.X < GraphicsDevice.Viewport.Width &&
                                mouseState.Y >= 0 && mouseState.Y < GraphicsDevice.Viewport.Height;
 
@@ -231,6 +245,9 @@ public class Game1 : Game
         // Labels drawn last, directly to the backbuffer - stays crisp, not blurred/vignetted.
         _spriteBatch.Begin();
         _mapRenderer.DrawLabels(_spriteBatch, _world, _camera, _font);
+
+       _hud.Draw(_spriteBatch, _world, _playerFaction, _selectedUnit, _defconEntity, _placementSelection, _font, GraphicsDevice);
+
         _spriteBatch.End();
 
         base.Draw(gameTime);
@@ -238,6 +255,12 @@ public class Game1 : Game
 
     private void HandleLeftClick(Vector2 screenPosition, bool nuclearStrikeModifier)
     {
+        if (_placementSelection.HasValue)
+        {
+            TryPlaceUnit(screenPosition, _placementSelection.Value);
+            return;
+        }
+
         const float selectRadiusPixels = 18f;
 
         Entity? clickedUnit = null;
@@ -275,36 +298,48 @@ public class Game1 : Game
 
         if (_world.Has<MovementComponent>(_selectedUnit.Value))
         {
-            _world.Set(_selectedUnit.Value, new MoveOrderComponent { TargetLatitude = lat, TargetLongitude = lon });
+            var unitInfo = _world.Get<UnitComponent>(_selectedUnit.Value);
+            if (unitInfo != null && unitInfo.Domain != UnitDomain.Land && _terrainMap.IsSea(lat, lon))
+            {
+                _world.Set(_selectedUnit.Value, new MoveOrderComponent { TargetLatitude = lat, TargetLongitude = lon });
+            }
+            // else: destination is on land - order silently rejected
         }
+    }
+
+    private void TryPlaceUnit(Vector2 screenPosition, UnitType type)
+    {
+        var worldPos = _camera.ScreenToWorld(screenPosition);
+        var (lat, lon) = GeoMath.Unproject(worldPos);
+
+        string defId = type switch
+        {
+            UnitType.Silo => "silo",
+            UnitType.RadarStation => "radar_station",
+            UnitType.Airbase => "airbase",
+            UnitType.Destroyer => "destroyer",
+            UnitType.Submarine => "submarine",
+            UnitType.Carrier => "carrier",
+            _ => null
+        };
+        if (defId == null) return;
+
+        var def = UnitDefinitions.All[defId];
+        var budget = _world.Get<PlacementBudgetComponent>(_playerFaction);
+        if (budget == null || budget.Points < def.PlacementCost) return;
+
+        if (!PlacementValidator.CanPlace(_world, _terrainMap, def.Domain, _playerFaction, lat, lon, out _)) return;
+
+        UnitFactory.Spawn(_world, defId, _playerFaction, lat, lon);
+        budget.Points -= def.PlacementCost;
     }
 
     private void LaunchNuclearStrike(Entity launcher, double targetLat, double targetLon)
     {
-        var weapon = _world.Get<WeaponComponent>(launcher);
-        var ownership = _world.Get<OwnershipComponent>(launcher);
-        var position = _world.Get<PositionComponent>(launcher);
-        var logistics = _world.Get<LogisticsComponent>(launcher);
+        var defcon = _world.Get<DefconComponent>(_defconEntity);
+        if (defcon == null || defcon.Level > 1) return; // not authorized until DEFCON 1
 
-        if (weapon == null || !weapon.IsNuclear) return;
-        if (weapon.CooldownRemaining > 0) return;
-        if (logistics != null && logistics.Ammo < weapon.AmmoPerShot) return;
-        if (ownership?.Owner is not { } faction) return;
-        if (position == null) return;
-
-        if (logistics != null) logistics.Ammo -= weapon.AmmoPerShot;
-        weapon.CooldownRemaining = weapon.RateOfFireSeconds;
-
-        var missile = _world.CreateEntity();
-        _world.Set(missile, new PositionComponent { Latitude = position.Latitude, Longitude = position.Longitude });
-        _world.Set(missile, new MovementComponent { MaxSpeedKmh = 7500 });
-        _world.Set(missile, new MoveOrderComponent { TargetLatitude = targetLat, TargetLongitude = targetLon });
-        _world.Set(missile, new IncomingStrikeComponent
-        {
-            AttackerFaction = faction,
-            BlastRadiusKm = weapon.BlastRadiusKm,
-            MaxCasualties = weapon.Damage
-        });
+        NuclearStrikeLauncher.TryLaunch(_world, launcher, targetLat, targetLon);
     }
 
     private void DeployDecoy(Entity unit)
