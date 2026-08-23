@@ -16,9 +16,15 @@ public class HudRenderer
         "P: Sonar active/passive | E: EMCON | J: Jamming | D: Decoy",
         "Scroll: Zoom | Right-drag/Arrows: Pan | Tab: Debug reveal"
     };
-    public void Draw(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity? selectedUnit, Entity defconEntity, WorldNMilSim.Components.UnitType? placementSelection, SpriteFont font, GraphicsDevice device)
+
+    public void Draw(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity? selectedUnit, Entity defconEntity, Entity tensionEntity, UnitType? placementSelection, SpriteFont font, GraphicsDevice device)
     {
         DrawDefcon(spriteBatch, world, defconEntity, font);
+
+        var tension = world.Get<TensionComponent>(tensionEntity);
+        if (tension != null)
+            DrawShadowedText(spriteBatch, font, $"Tension: {(int)tension.Tension}", new Vector2(20, 44), Color.OrangeRed);
+
         DrawFactionStatus(spriteBatch, world, playerFaction, font);
         DrawKeybindLegend(spriteBatch, font, device);
 
@@ -49,7 +55,7 @@ public class HudRenderer
     {
         var factionInfo = world.Get<FactionComponent>(faction);
         var budget = world.Get<PlacementBudgetComponent>(faction);
-        float y = 50;
+        float y = 72;
 
         if (factionInfo != null)
         {
@@ -144,6 +150,13 @@ public class HudRenderer
         if (decoyLauncher != null)
         {
             DrawShadowedText(spriteBatch, font, $"Decoys: {decoyLauncher.RemainingDecoys}/{decoyLauncher.MaxDecoys}", new Vector2(x, y), Color.White);
+            y += 20;
+        }
+
+        var interceptor = world.Get<InterceptorComponent>(unit);
+        if (interceptor != null)
+        {
+            DrawShadowedText(spriteBatch, font, $"Interceptors: {interceptor.RemainingInterceptors}/{interceptor.MaxInterceptors}", new Vector2(x, y), Color.LightGreen);
             y += 20;
         }
 

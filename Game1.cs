@@ -30,6 +30,7 @@ public class Game1 : Game
     private SystemManager _systems;
     private Entity _playerFaction;
     private Entity _defconEntity;
+    private Entity _tensionEntity;
 
     private bool _debugShowAllUnits;
     private MouseState _previousMouseState;
@@ -64,6 +65,9 @@ public class Game1 : Game
 
         _defconEntity = _world.CreateEntity();
         _world.Set(_defconEntity, new DefconComponent());
+
+        _tensionEntity = _world.CreateEntity();
+        _world.Set(_tensionEntity, new TensionComponent());
 
         // Player faction - no starting units, place everything yourself.
         _playerFaction = _world.CreateEntity();
@@ -101,13 +105,14 @@ public class Game1 : Game
 
         _systems = new SystemManager()
             .Add(new MovementSystem())
-            .Add(new NuclearImpactSystem())
+            .Add(new InterceptSystem())
+            .Add(new NuclearImpactSystem(_tensionEntity))
             .Add(new LogisticsSystem())
             .Add(new DetectionSystem())
-            .Add(new CombatSystem())
+            .Add(new CombatSystem(_tensionEntity))
             .Add(new DecoySystem())
             .Add(new ReinforcementSystem())
-            .Add(new DefconSystem())
+            .Add(new DefconSystem(_tensionEntity))
             .Add(new AiSystem(_terrainMap, _defconEntity));
     }
 
@@ -237,6 +242,7 @@ public class Game1 : Game
             _unitRenderer.DrawIncomingStrikes(_spriteBatch, _world);
             _unitRenderer.DrawRadarCones(_spriteBatch, _world, _playerFaction);
             _unitRenderer.DrawJammingRadius(_spriteBatch, _world, _playerFaction);
+            _unitRenderer.DrawInterceptorRange(_spriteBatch, _world, _playerFaction);
             _spriteBatch.End();
         }
 
@@ -246,7 +252,7 @@ public class Game1 : Game
         _spriteBatch.Begin();
         _mapRenderer.DrawLabels(_spriteBatch, _world, _camera, _font);
 
-       _hud.Draw(_spriteBatch, _world, _playerFaction, _selectedUnit, _defconEntity, _placementSelection, _font, GraphicsDevice);
+        _hud.Draw(_spriteBatch, _world, _playerFaction, _selectedUnit, _defconEntity, _tensionEntity, _placementSelection, _font, GraphicsDevice);
 
         _spriteBatch.End();
 

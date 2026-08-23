@@ -51,6 +51,10 @@ public static class UnitFactory
                 BlastRadiusKm = def.BlastRadiusKm
             });
 
+        var interceptor = InterceptorLoadouts.For(def.Type);
+        if (interceptor != null)
+            world.Set(e, interceptor);
+
         if (def.MaxSpeedKmh > 0)
             world.Set(e, new MovementComponent { MaxSpeedKmh = def.MaxSpeedKmh });
 

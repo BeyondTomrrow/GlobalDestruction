@@ -4,11 +4,19 @@ using Microsoft.Xna.Framework;
 using WorldNMilSim.Core;
 using WorldNMilSim.Components;
 using WorldNMilSim.Map;
+using System.Runtime.CompilerServices;
 
 namespace WorldNMilSim.Systems;
 
 public class CombatSystem : ISystem
 {
+
+    private readonly Entity _tensionEntity;
+
+    public CombatSystem(Entity tensionEntity)
+    {
+        _tensionEntity = tensionEntity;
+    }
     public void Update(World world, GameTime gameTime)
     {
         // Real elapsed time on purpose - rate of fire should feel real-time even though
@@ -57,6 +65,7 @@ public class CombatSystem : ISystem
                     logistics.Ammo -= weapon.AmmoPerShot;
 
                 weapon.CooldownRemaining = weapon.RateOfFireSeconds;
+                IncreaseTension(world, 4);
             }
         }
 
@@ -68,5 +77,12 @@ public class CombatSystem : ISystem
         }
         foreach (var entity in dead)
             world.DestroyEntity(entity);
+    }
+
+    private void IncreaseTension(World world, double amount)
+    {
+        var tension = world.Get<TensionComponent>(_tensionEntity);
+        if (tension != null)
+            tension.Tension = System.Math.Min(100, tension.Tension + amount);
     }
 }

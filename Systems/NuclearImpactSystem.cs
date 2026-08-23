@@ -9,6 +9,12 @@ namespace WorldNMilSim.Systems;
 public class NuclearImpactSystem : ISystem
 {
     private const double UnitDamageMultiplier = 5.0;
+    private readonly Entity _tensionEntity;
+
+    public NuclearImpactSystem(Entity tensionEntity)
+    {
+        _tensionEntity = tensionEntity;
+    }
 
     public void Update(World world, GameTime gameTime)
     {
@@ -53,6 +59,10 @@ public class NuclearImpactSystem : ISystem
 
             foreach (var entity in destroyed)
                 world.DestroyEntity(entity);
+
+            var tension = world.Get<TensionComponent>(_tensionEntity);
+            if (tension != null)
+                tension.Tension = System.Math.Min(100, tension.Tension + 35); 
 
             world.DestroyEntity(missile);
         }

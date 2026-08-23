@@ -23,7 +23,7 @@ public static class NuclearStrikeLauncher
 
         var missile = world.CreateEntity();
         world.Set(missile, new PositionComponent { Latitude = position.Latitude, Longitude = position.Longitude });
-        world.Set(missile, new MovementComponent { MaxSpeedKmh = 7500 });
+        world.Set(missile, new MovementComponent { MaxSpeedKmh = 3000 });
         world.Set(missile, new MoveOrderComponent { TargetLatitude = targetLat, TargetLongitude = targetLon });
         world.Set(missile, new IncomingStrikeComponent
         {

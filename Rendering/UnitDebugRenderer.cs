@@ -196,4 +196,27 @@ public class UnitDebugRenderer
             }
         }
     }
+
+    public void DrawInterceptorRange(SpriteBatch spriteBatch, World world, Entity viewingFaction)
+    {
+        foreach (var (entity, interceptor, position, ownership) in world.Query<InterceptorComponent, PositionComponent, OwnershipComponent>())
+        {
+            if (ownership.Owner != viewingFaction) continue;
+
+            const int segments = 24;
+            Vector2 previous = default;
+
+            for (int i = 0; i <= segments; i++)
+            {
+                double bearing = 360.0 / segments * i;
+                var (lat, lon) = GeoMath.DestinationPoint(position.Latitude, position.Longitude, bearing * Math.PI / 180.0, interceptor.RangeKm);
+                var point = GeoMath.Project(lat, lon);
+
+                if (i > 0)
+                    DrawLine(spriteBatch, previous, point, Color.LightGreen * 0.35f, 1.5f);
+
+                previous = point;
+            }
+        }
+    }
 }
