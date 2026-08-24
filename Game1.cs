@@ -32,6 +32,7 @@ public class Game1 : Game
     private Entity _defconEntity;
     private Entity _tensionEntity;
     private Entity _diplomacyEntity;
+    private Entity _chatterEntity;
     private List<Entity> _aiFactions = new();
 
     private bool _debugShowAllUnits;
@@ -44,6 +45,9 @@ public class Game1 : Game
     private UnitType? _placementSelection;
 
     private HudRenderer _hud;
+    private AudioManager _audio;
+
+    private WinConditionSystem _winCondition;
 
     public Game1()
     {
@@ -73,6 +77,9 @@ public class Game1 : Game
 
         _diplomacyEntity = _world.CreateEntity();
         _world.Set(_diplomacyEntity, new DiplomacyComponent());
+
+        _chatterEntity = _world.CreateEntity();
+        _world.Set(_chatterEntity, new ChatterLogComponent());
 
         // Player faction - no starting units, place everything yourself.
         _playerFaction = _world.CreateEntity();
@@ -119,18 +126,24 @@ public class Game1 : Game
         _camera = new Camera2D(GraphicsDevice);
         _hud = new HudRenderer();
         _terrainMap = new TerrainMap(_worldMapTexture);
+        _audio = new AudioManager(Content);
+
+        _winCondition = new WinConditionSystem(_playerFaction, _chatterEntity);
 
         _systems = new SystemManager()
             .Add(new MovementSystem())
             .Add(new InterceptSystem())
-            .Add(new NuclearImpactSystem(_tensionEntity))
+            .Add(new NuclearImpactSystem(_tensionEntity, _chatterEntity))
             .Add(new LogisticsSystem())
             .Add(new DetectionSystem())
             .Add(new CombatSystem(_tensionEntity, _diplomacyEntity))
             .Add(new DecoySystem())
             .Add(new ReinforcementSystem())
-            .Add(new DefconSystem(_tensionEntity))
-            .Add(new AiSystem(_terrainMap, _defconEntity, _diplomacyEntity));
+            .Add(new DefconSystem(_tensionEntity, _chatterEntity))
+            .Add(new ChatterLogSystem(_chatterEntity))
+            .Add(new AiSystem(_terrainMap, _defconEntity, _diplomacyEntity, _chatterEntity))
+            .Add(new CaptureSystem(_chatterEntity))
+            .Add(_winCondition);
     }
 
     protected override void Update(GameTime gameTime)
@@ -167,11 +180,17 @@ public class Game1 : Game
             var sensors = _world.Get<SensorsComponent>(_selectedUnit.Value);
             if (sensors != null)
             {
+                bool becameActive = false;
                 foreach (var sensor in sensors.Sensors)
                 {
                     if (sensor.Type == SensorType.Sonar)
+                    {
                         sensor.Mode = sensor.Mode == SonarMode.Passive ? SonarMode.Active : SonarMode.Passive;
+                        if (sensor.Mode == SonarMode.Active) becameActive = true;
+                    }
                 }
+                if (becameActive)
+                    _audio.PlaySonarPing();
             }
         }
 
@@ -241,7 +260,14 @@ public class Game1 : Game
         _previousMouseState = mouseState;
         _previousKeyboardState = keyboardState;
 
-        _systems.Update(_world, gameTime);
+        if (_winCondition.State == MatchState.InProgress)
+            _systems.Update(_world, gameTime);
+
+        _audio.Update(gameTime.ElapsedGameTime.TotalSeconds);
+
+        var defconState = _world.Get<DefconComponent>(_defconEntity);
+        if (defconState != null && defconState.Level <= 1)
+            _audio.PlayDefcon1Alert();
 
         base.Update(gameTime);
     }
@@ -274,7 +300,8 @@ public class Game1 : Game
         _spriteBatch.Begin();
         _mapRenderer.DrawLabels(_spriteBatch, _world, _camera, _font);
 
-        _hud.Draw(_spriteBatch, _world, _playerFaction, _selectedUnit, _defconEntity, _tensionEntity, _diplomacyEntity, _placementSelection, _font, GraphicsDevice);
+        _hud.Draw(_spriteBatch, _world, _playerFaction, _selectedUnit, _defconEntity, _tensionEntity, _diplomacyEntity, _chatterEntity, _placementSelection, _font, GraphicsDevice);
+        _hud.DrawMatchResult(_spriteBatch, _world, _playerFaction, _winCondition.State, _font, GraphicsDevice);
 
         _spriteBatch.End();
 
@@ -372,7 +399,7 @@ public class Game1 : Game
         var defcon = _world.Get<DefconComponent>(_defconEntity);
         if (defcon == null || defcon.Level > 1) return; // not authorized until DEFCON 1
 
-        NuclearStrikeLauncher.TryLaunch(_world, launcher, targetLat, targetLon);
+        NuclearStrikeLauncher.TryLaunch(_world, launcher, targetLat, targetLon, _chatterEntity);
     }
 
     private void CycleDiplomacy(int aiFactionIndex)

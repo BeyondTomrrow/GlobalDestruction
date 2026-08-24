@@ -13,6 +13,111 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin Audio/Chatter1.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter1.ogg;Chatter1.ogg
+
+#begin Audio/Chatter2.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter2.ogg;Chatter2.ogg
+
+#begin Audio/Chatter3.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter3.ogg;Chatter3.ogg
+
+#begin Audio/Chatter4.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter4.ogg;Chatter4.ogg
+
+#begin Audio/Chatter5.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter5.ogg;Chatter5.ogg
+
+#begin Audio/Chatter6.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter6.ogg;Chatter6.ogg
+
+#begin Audio/Chatter7.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter7.ogg;Chatter7.ogg
+
+#begin Audio/Chatter8.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter8.ogg;Chatter8.ogg
+
+#begin Audio/Chatter9.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Chatter9.ogg;Chatter9.ogg
+
+#begin Audio/DEFCON1.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/DEFCON1.ogg;DEFCON1.ogg
+
+#begin Audio/Sonar.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sonar.ogg;Sonar.ogg
+
+#begin Audio/Track1.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Track1.mp3;Track1.mp3
+
+#begin Audio/Track2.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Track2.mp3;Track2.mp3
+
+#begin Audio/Track3.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Track3.mp3;Track3.mp3
+
+#begin Audio/Track4.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Track4.mp3;Track4.mp3
+
 #begin MapFont.spritefont
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor

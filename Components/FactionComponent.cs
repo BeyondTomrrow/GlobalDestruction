@@ -9,4 +9,5 @@ public class FactionComponent
     public bool IsPlayerControlled;
     public int TotalCasualtiesInflicted;
     public int TotalCasualtiesSuffered;
+    public bool IsEliminated;
 }

@@ -10,10 +10,12 @@ public class NuclearImpactSystem : ISystem
 {
     private const double UnitDamageMultiplier = 5.0;
     private readonly Entity _tensionEntity;
+    private readonly Entity _chatterEntity;
 
-    public NuclearImpactSystem(Entity tensionEntity)
+    public NuclearImpactSystem(Entity tensionEntity, Entity chatterEntity)
     {
         _tensionEntity = tensionEntity;
+        _chatterEntity = chatterEntity;
     }
 
     public void Update(World world, GameTime gameTime)
@@ -62,8 +64,10 @@ public class NuclearImpactSystem : ISystem
 
             var tension = world.Get<TensionComponent>(_tensionEntity);
             if (tension != null)
-                tension.Tension = System.Math.Min(100, tension.Tension + 35); 
+                tension.Tension = System.Math.Min(100, tension.Tension + 35);
 
+            var attackerInfo = world.Get<FactionComponent>(strike.AttackerFaction);
+            ChatterLog.Post(world, _chatterEntity, $"{attackerInfo?.Name ?? "Unknown"}: nuclear detonation confirmed");
             world.DestroyEntity(missile);
         }
     }

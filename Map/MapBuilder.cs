@@ -26,6 +26,8 @@ public static class MapBuilder
 
             world.Set(e, new OwnershipComponent { Owner = null });
             world.Set(e, new AdjacencyComponent());
+            if (def.Kind == TerritoryKind.Land)
+                world.Set(e, new CaptureStateComponent());
 
 
             lookup[def.Id] = e;

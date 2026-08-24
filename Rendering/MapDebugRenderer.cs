@@ -66,6 +66,23 @@ public class MapDebugRenderer
             var pos = GeoMath.Project(position.Latitude, position.Longitude);
             spriteBatch.Draw(_pixel, new Rectangle((int)pos.X - 3, (int)pos.Y - 3, 6, 6), Color.LightGray);
         }
+
+        foreach (var (entity, territory, captureState) in world.Query<TerritoryComponent, CaptureStateComponent>())
+        {
+            if (captureState.CapturingFaction is not { } capturingFaction || captureState.Progress <= 0) continue;
+
+            var factionInfo = world.Get<FactionComponent>(capturingFaction);
+            if (factionInfo == null) continue;
+
+            var pos = GeoMath.Project(territory.Latitude, territory.Longitude);
+            const int barWidth = 24;
+            const int barHeight = 4;
+            int filledWidth = (int)(barWidth * captureState.Progress);
+
+            var barPos = new Rectangle((int)pos.X - barWidth / 2, (int)pos.Y + 10, barWidth, barHeight);
+            spriteBatch.Draw(_pixel, barPos, Color.Black * 0.6f);
+            spriteBatch.Draw(_pixel, new Rectangle(barPos.X, barPos.Y, filledWidth, barHeight), factionInfo.Color);
+        }
     }
 
 

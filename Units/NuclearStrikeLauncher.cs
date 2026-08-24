@@ -5,7 +5,7 @@ namespace WorldNMilSim.Units;
 
 public static class NuclearStrikeLauncher
 {
-    public static bool TryLaunch(World world, Entity launcher, double targetLat, double targetLon)
+    public static bool TryLaunch(World world, Entity launcher, double targetLat, double targetLon, Entity chatterEntity)
     {
         var weapon = world.Get<WeaponComponent>(launcher);
         var ownership = world.Get<OwnershipComponent>(launcher);
@@ -20,6 +20,9 @@ public static class NuclearStrikeLauncher
 
         if (logistics != null) logistics.Ammo -= weapon.AmmoPerShot;
         weapon.CooldownRemaining = weapon.RateOfFireSeconds;
+
+        var factionInfo = world.Get<FactionComponent>(faction);
+        ChatterLog.Post(world, chatterEntity, $"{factionInfo?.Name ?? "Unknown"}: missile launch detected");
 
         var missile = world.CreateEntity();
         world.Set(missile, new PositionComponent { Latitude = position.Latitude, Longitude = position.Longitude });

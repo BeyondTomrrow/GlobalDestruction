@@ -28,11 +28,14 @@ public class AiSystem : ISystem
         ["army"] = 2,
     };
 
-    public AiSystem(TerrainMap terrainMap, Entity defconEntity, Entity diplomacyEntity)
+    private readonly Entity _chatterEntity;
+
+    public AiSystem(TerrainMap terrainMap, Entity defconEntity, Entity diplomacyEntity, Entity chatterEntity)
     {
         _terrainMap = terrainMap;
         _defconEntity = defconEntity;
         _diplomacyEntity = diplomacyEntity;
+        _chatterEntity = chatterEntity;
     }
 
     public void Update(World world, GameTime gameTime)
@@ -43,6 +46,7 @@ public class AiSystem : ISystem
 
             TryPlaceUnits(world, factionEntity);
             RunMovement(world, factionEntity);
+            RunElectronicWarfare(world, factionEntity);
             TryLaunchNuclear(world, factionEntity);
         }
     }
@@ -129,6 +133,8 @@ public class AiSystem : ISystem
         return (seaInfo.Latitude, seaInfo.Longitude); // fallback: the sea zone's own anchor point, guaranteed water
     }
 
+    private const double MaxConquestDistanceKm = 4000; // roughly "same landmass or close neighbor" - Army has no real pathfinding, so distant targets would just march straight across ocean, which looks wrong
+
     private void RunMovement(World world, Entity faction)
     {
         var units = world.Query<UnitComponent, PositionComponent, OwnershipComponent, MovementComponent>()
@@ -156,11 +162,18 @@ public class AiSystem : ISystem
             }
 
             double targetLat, targetLon;
+
             if (target.HasValue)
             {
                 var targetPos = world.Get<PositionComponent>(target.Value)!;
                 targetLat = targetPos.Latitude;
                 targetLon = targetPos.Longitude;
+            }
+            else if (unitInfo.Type == UnitType.Army)
+            {
+                var conquestTarget = FindConquestTarget(world, faction, position);
+                if (conquestTarget == null) continue; // nothing worth invading in range - sit tight
+                (targetLat, targetLon) = conquestTarget.Value;
             }
             else
             {
@@ -175,6 +188,28 @@ public class AiSystem : ISystem
 
             world.Set(unitEntity, new MoveOrderComponent { TargetLatitude = targetLat, TargetLongitude = targetLon });
         }
+    }
+
+    private (double lat, double lon)? FindConquestTarget(World world, Entity faction, PositionComponent position)
+    {
+        Entity? nearestTarget = null;
+        double bestDistance = MaxConquestDistanceKm;
+
+        foreach (var (territoryEntity, territory, ownership) in world.Query<TerritoryComponent, OwnershipComponent>())
+        {
+            if (territory.Kind != TerritoryKind.Land || ownership.Owner == faction) continue;
+
+            double distanceKm = GeoMath.HaversineDistanceKm(position.Latitude, position.Longitude, territory.Latitude, territory.Longitude);
+            if (distanceKm < bestDistance)
+            {
+                bestDistance = distanceKm;
+                nearestTarget = territoryEntity;
+            }
+        }
+
+        if (nearestTarget == null) return null;
+        var info = world.Get<TerritoryComponent>(nearestTarget.Value)!;
+        return (info.Latitude, info.Longitude);
     }
 
     private void TryLaunchNuclear(World world, Entity faction)
@@ -211,8 +246,46 @@ public class AiSystem : ISystem
             if (targetCity is { } city2)
             {
                 var targetPosition = world.Get<PositionComponent>(city2)!;
-                if (NuclearStrikeLauncher.TryLaunch(world, launcherEntity, targetPosition.Latitude, targetPosition.Longitude))
+                if (NuclearStrikeLauncher.TryLaunch(world, launcherEntity, targetPosition.Latitude, targetPosition.Longitude, _chatterEntity))
                     return; // one launch per tick per faction
+            }
+        }
+    }
+
+    private void RunElectronicWarfare(World world, Entity faction)
+    {
+        var units = world.Query<UnitComponent, PositionComponent, OwnershipComponent>().ToList();
+
+        foreach (var (unitEntity, unitInfo, position, ownership) in units)
+        {
+            if (ownership.Owner != faction) continue;
+
+            if (unitInfo.Type == UnitType.Submarine && !world.Has<EmconComponent>(unitEntity))
+                world.Set(unitEntity, new EmconComponent());
+
+            double nearestEnemyKm = double.MaxValue;
+            foreach (var (enemyEntity, enemyPos, enemyOwnership) in world.Query<PositionComponent, OwnershipComponent>())
+            {
+                if (enemyOwnership.Owner == faction || enemyOwnership.Owner == null) continue;
+
+                double distanceKm = GeoMath.HaversineDistanceKm(position.Latitude, position.Longitude, enemyPos.Latitude, enemyPos.Longitude);
+                if (distanceKm < nearestEnemyKm)
+                    nearestEnemyKm = distanceKm;
+            }
+
+            var jammer = world.Get<JammerComponent>(unitEntity);
+            if (jammer != null)
+                jammer.IsActive = nearestEnemyKm <= 400;
+
+            var decoyLauncher = world.Get<DecoyLauncherComponent>(unitEntity);
+            if (decoyLauncher != null && nearestEnemyKm <= 200 && decoyLauncher.RemainingDecoys > 0 && decoyLauncher.CooldownRemaining <= 0)
+            {
+                decoyLauncher.RemainingDecoys--;
+                decoyLauncher.CooldownRemaining = decoyLauncher.CooldownSeconds;
+
+                double offsetLat = position.Latitude + (_random.NextDouble() * 2 - 1) * 0.3;
+                double offsetLon = position.Longitude + (_random.NextDouble() * 2 - 1) * 0.3;
+                DecoyFactory.Spawn(world, faction, offsetLat, offsetLon, unitInfo.Domain);
             }
         }
     }

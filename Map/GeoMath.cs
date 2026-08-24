@@ -50,6 +50,10 @@ public static class GeoMath
             Math.Sin(bearingRadians) * Math.Sin(angularDistance) * Math.Cos(phi1),
             Math.Cos(angularDistance) - Math.Sin(phi1) * Math.Sin(phi2));
 
+        // Wrap back into [-π, π] - without this, longitude can drift outside ±180° over a long
+        // flight, which corrupts screen projection even though the underlying great-circle math stays correct.
+        lambda2 = ((lambda2 + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+
         return (ToDeg(phi2), ToDeg(lambda2));
     }
 

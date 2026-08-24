@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using WorldNMilSim.Core;
 
-namespace WorldNMilSim.Core;
+namespace WorldNMilSim.Components;
 
 // Which factions currently have this unit detected. Rebuilt every tick by DetectionSystem
 

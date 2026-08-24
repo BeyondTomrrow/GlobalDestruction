@@ -8,6 +8,8 @@ namespace WorldNMilSim.Systems;
 // not a per-tick ISystem.
 public static class CasualtyTracker
 {
+    private const double BudgetPenaltyPerCasualty = 2.0;
+
     public static int Apply(World world, Entity city, int deaths, Entity attackerFaction)
     {
         var population = world.Get<PopulationComponent>(city);
@@ -29,6 +31,10 @@ public static class CasualtyTracker
                 var ownerInfo = world.Get<FactionComponent>(ownerFaction);
                 if (ownerInfo != null)
                     ownerInfo.TotalCasualtiesSuffered += actualDeaths;
+
+                var budget = world.Get<PlacementBudgetComponent>(ownerFaction);
+                if (budget != null)
+                    budget.Points = System.Math.Max(0, budget.Points - actualDeaths * BudgetPenaltyPerCasualty);
             }
         }
 

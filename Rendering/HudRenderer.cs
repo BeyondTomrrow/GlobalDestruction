@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using WorldNMilSim.Core;
+using WorldNMilSim.Systems;
 using WorldNMilSim.Components;
 using System.Collections.Generic;
 
@@ -11,14 +12,14 @@ public class HudRenderer
     private static readonly string[] LegendLines =
     {
         "1: Silo | 2: Radar Station | 3: Airbase",
-        "4: Destroyer | 5: Submarine | 6: Carrier",
+        "4: Destroyer | 5: Submarine | 6: Carrier | 7: Army",
         "Click empty ground/water to place | Esc: Cancel placement",
         "Click unit: Select/Move | Shift+Click: Nuclear strike",
         "P: Sonar active/passive | E: EMCON | J: Jamming | D: Decoy",
         "Scroll: Zoom | Right-drag/Arrows: Pan | Tab: Debug reveal"
     };
 
-    public void Draw(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity? selectedUnit, Entity defconEntity, Entity tensionEntity, Entity diplomacyEntity, UnitType? placementSelection, SpriteFont font, GraphicsDevice device)
+    public void Draw(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity? selectedUnit, Entity defconEntity, Entity tensionEntity, Entity diplomacyEntity, Entity chatterEntity, UnitType? placementSelection, SpriteFont font, GraphicsDevice device)
     {
         DrawDefcon(spriteBatch, world, defconEntity, font);
 
@@ -29,12 +30,30 @@ public class HudRenderer
         DrawFactionStatus(spriteBatch, world, playerFaction, font);
         DrawKeybindLegend(spriteBatch, font, device);
         DrawDiplomacy(spriteBatch, world, playerFaction, diplomacyEntity, font, device);
+        DrawChatterLog(spriteBatch, world, chatterEntity, font, device);
 
         if (placementSelection.HasValue)
-            DrawShadowedText(spriteBatch, font, $"Placing: {placementSelection.Value} (click to place, Esc to cancel)", new Vector2(20, 140), Color.Cyan);
+            DrawShadowedText(spriteBatch, font, $"Placing: {placementSelection.Value} (click to place, Esc to cancel)", new Vector2(20, 160), Color.Cyan);
 
         if (selectedUnit.HasValue)
             DrawUnitPanel(spriteBatch, world, selectedUnit.Value, font, device);
+    }
+
+    private void DrawChatterLog(SpriteBatch spriteBatch, World world, Entity chatterEntity, SpriteFont font, GraphicsDevice device)
+    {
+        var log = world.Get<ChatterLogComponent>(chatterEntity);
+        if (log == null || log.Messages.Count == 0) return;
+
+        float x = device.Viewport.Width / 2f - 250;
+        float y = 20;
+
+        for (int i = log.Messages.Count - 1; i >= 0; i--)
+        {
+            var message = log.Messages[i];
+            float alpha = (float)System.Math.Min(1.0, message.RemainingSeconds / 2.0); // fade out in the last 2 seconds
+            DrawShadowedText(spriteBatch, font, message.Text, new Vector2(x, y), Color.LightYellow * alpha);
+            y += 20;
+        }
     }
 
     private void DrawDiplomacy(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity diplomacyEntity, SpriteFont font, GraphicsDevice device)
@@ -205,5 +224,28 @@ public class HudRenderer
     {
         spriteBatch.DrawString(font, text, position + Vector2.One, Color.Black * 0.7f);
         spriteBatch.DrawString(font, text, position, color);
+    }
+
+    public void DrawMatchResult(SpriteBatch spriteBatch, World world, Entity playerFaction, MatchState state, SpriteFont font, GraphicsDevice device)
+    {
+        if (state == MatchState.InProgress) return;
+
+        string title = state == MatchState.PlayerWon ? "VICTORY" : "DEFEAT";
+        var color = state == MatchState.PlayerWon ? Color.LightGreen : Color.Red;
+
+        var titleSize = font.MeasureString(title) * 3f;
+        var titlePos = new Vector2(device.Viewport.Width / 2f - titleSize.X / 2f, device.Viewport.Height / 2f - titleSize.Y / 2f - 40);
+
+        spriteBatch.DrawString(font, title, titlePos + Vector2.One * 3, Color.Black * 0.8f, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0f);
+        spriteBatch.DrawString(font, title, titlePos, color, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0f);
+
+        var factionInfo = world.Get<FactionComponent>(playerFaction);
+        if (factionInfo != null)
+        {
+            string stats = $"Casualties inflicted: {factionInfo.TotalCasualtiesInflicted}   Casualties suffered: {factionInfo.TotalCasualtiesSuffered}";
+            var statsSize = font.MeasureString(stats);
+            var statsPos = new Vector2(device.Viewport.Width / 2f - statsSize.X / 2f, titlePos.Y + titleSize.Y + 20);
+            DrawShadowedText(spriteBatch, font, stats, statsPos, Color.White);
+        }
     }
 }
