@@ -27,6 +27,8 @@ public static class SensorLoadouts
             new() { Type = SensorType.Radar, DetectionRadiusKm = 700 },
             new() { Type = SensorType.Sonar, DetectionRadiusKm = 40 },
         },
+
+        UnitType.Army => new List<Sensor> { new() { Type = SensorType.Radar, DetectionRadiusKm = 40 }},
         _ => new List<Sensor>()
     };
 }

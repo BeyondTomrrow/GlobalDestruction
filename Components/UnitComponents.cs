@@ -1,6 +1,6 @@
 namespace WorldNMilSim.Components;
 
-public enum UnitType { Silo, RadarStation, Airbase, Destroyer, Submarine, Carrier, Decoy }
+public enum UnitType { Silo, RadarStation, Airbase, Destroyer, Submarine, Carrier, Decoy, Army }
 public enum UnitDomain { Land, Surface, Submerged }
 
 public class UnitComponent

@@ -4,24 +4,26 @@ using Microsoft.Xna.Framework;
 using WorldNMilSim.Core;
 using WorldNMilSim.Components;
 using WorldNMilSim.Map;
-using System.Runtime.CompilerServices;
 
 namespace WorldNMilSim.Systems;
 
 public class CombatSystem : ISystem
 {
-
     private readonly Entity _tensionEntity;
+    private readonly Entity _diplomacyEntity;
 
-    public CombatSystem(Entity tensionEntity)
+    public CombatSystem(Entity tensionEntity, Entity diplomacyEntity)
     {
         _tensionEntity = tensionEntity;
+        _diplomacyEntity = diplomacyEntity;
     }
+
     public void Update(World world, GameTime gameTime)
     {
         // Real elapsed time on purpose - rate of fire should feel real-time even though
         // travel/resupply run on the compressed SimulationClock.TimeScale.
         double dtSeconds = gameTime.ElapsedGameTime.TotalSeconds;
+        var diplomacy = world.Get<DiplomacyComponent>(_diplomacyEntity);
 
         var attackers = world.Query<WeaponComponent, PositionComponent, OwnershipComponent>().ToList();
 
@@ -43,6 +45,7 @@ public class CombatSystem : ISystem
             foreach (var (targetEntity, targetPos, targetOwnership) in world.Query<PositionComponent, OwnershipComponent>())
             {
                 if (targetOwnership.Owner is not { } targetFaction || targetFaction == attackerFaction) continue;
+                if (diplomacy != null && diplomacy.GetStance(attackerFaction, targetFaction) != RelationStance.War) continue;
 
                 var targetDetection = world.Get<DetectionComponent>(targetEntity);
                 if (targetDetection == null || !targetDetection.DetectedByFactions.Contains(attackerFaction)) continue;

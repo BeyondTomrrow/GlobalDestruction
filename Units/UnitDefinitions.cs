@@ -64,5 +64,11 @@ public static class UnitDefinitions
             SupplyRangeKm: 4000, RadarSignature: 1.0, AcousticSignature: 0.8,
             WeaponRangeKm: 400, WeaponDamage: 60, IsNuclearCapable: false, MaxSpeedKmh: 56,
             RateOfFireSeconds: 6, BlastRadiusKm: 0, PlacementCost: 180),
+
+        ["army"] = new("army", "Army", UnitType.Army, UnitDomain.Land, false,
+            MaxHealth: 90, MaxFuel: 400, FuelConsumptionPerHour: 6, MaxAmmo: 50,
+            SupplyRangeKm: 1500, RadarSignature: 1.0, AcousticSignature: 0,
+            WeaponRangeKm: 50, WeaponDamage: 35, IsNuclearCapable: false, MaxSpeedKmh: 40,
+            RateOfFireSeconds: 5, BlastRadiusKm: 0, PlacementCost: 90),
     };
 }

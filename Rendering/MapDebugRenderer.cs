@@ -42,7 +42,19 @@ public class MapDebugRenderer
         foreach (var (entity, territory) in world.Query<TerritoryComponent>())
         {
             var pos = GeoMath.Project(territory.Latitude, territory.Longitude);
-            var color = territory.Kind == TerritoryKind.Land ? Color.ForestGreen : Color.DeepSkyBlue;
+            Color color;
+
+            if (territory.Kind == TerritoryKind.Land)
+            {
+                var ownership = world.Get<OwnershipComponent>(entity);
+                var factionInfo = ownership?.Owner is { } owner ? world.Get<FactionComponent>(owner) : null;
+                color = factionInfo?.Color ?? Color.ForestGreen;
+            }
+            else
+            {
+                color = Color.DeepSkyBlue;
+            }
+
             int size = territory.Kind == TerritoryKind.Land ? 10 : 6;
             spriteBatch.Draw(_pixel, new Rectangle((int)pos.X - size / 2, (int)pos.Y - size / 2, size, size), color);
         }
@@ -56,7 +68,7 @@ public class MapDebugRenderer
         }
     }
 
-   
+
     public void DrawLabels(SpriteBatch spriteBatch, World world, Camera2D camera, SpriteFont font)
     {
         bool zoomedIn = camera.ZoomLevel > camera.FitZoom * 2f;

@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace WorldNMilSim.Rendering;
 
-public enum IconShape { Square, Circle, RingOutline, Triangle, Diamond, Cross }
+public enum IconShape { Square, Circle, RingOutline, Triangle, Diamond, Cross, Plus }
 
 public static class ShapeTextures
 {
@@ -32,6 +32,9 @@ public static class ShapeTextures
                 break;
             case IconShape.Cross:
                 DrawCross(data, size);
+                break;
+            case IconShape.Plus:
+                DrawPlus(data, size);
                 break;
         }
 
@@ -86,6 +89,19 @@ public static class ShapeTextures
                 bool onDiag1 = Math.Abs(x - y) <= thickness;
                 bool onDiag2 = Math.Abs(x - (size - 1 - y)) <= thickness;
                 if (onDiag1 || onDiag2)
+                    data[y * size + x] = Color.White;
+            }
+    }
+    private static void DrawPlus(Color[] data, int size)
+    {
+        int thickness = Math.Max(2, size / 6);
+        int center = size / 2;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                bool onVertical = Math.Abs(x - center) <= thickness;
+                bool onHorizontal = Math.Abs(y - center) <= thickness;
+                if (onVertical || onHorizontal)
                     data[y * size + x] = Color.White;
             }
     }

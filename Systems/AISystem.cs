@@ -1,20 +1,22 @@
 using System.Linq;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using WorldNMilSim.Core;
 using WorldNMilSim.Components;
 using WorldNMilSim.Map;
 using WorldNMilSim.Units;
-using System.Collections.Generic;
+
 namespace WorldNMilSim.Systems;
 
 public class AiSystem : ISystem
 {
     private readonly TerrainMap _terrainMap;
     private readonly Entity _defconEntity;
+    private readonly Entity _diplomacyEntity;
     private readonly System.Random _random = new();
 
     private const int MaxAiUnits = 10;
-    private static readonly string[] PlacementPriority = { "silo", "radar_station", "destroyer", "submarine", "airbase", "carrier" };
+    private static readonly string[] PlacementPriority = { "silo", "radar_station", "army", "destroyer", "submarine", "airbase", "carrier" };
     private static readonly Dictionary<string, int> MaxPerType = new()
     {
         ["silo"] = 1,
@@ -23,12 +25,14 @@ public class AiSystem : ISystem
         ["destroyer"] = 3,
         ["submarine"] = 2,
         ["carrier"] = 1,
+        ["army"] = 2,
     };
 
-    public AiSystem(TerrainMap terrainMap, Entity defconEntity)
+    public AiSystem(TerrainMap terrainMap, Entity defconEntity, Entity diplomacyEntity)
     {
         _terrainMap = terrainMap;
         _defconEntity = defconEntity;
+        _diplomacyEntity = diplomacyEntity;
     }
 
     public void Update(World world, GameTime gameTime)
@@ -42,8 +46,6 @@ public class AiSystem : ISystem
             TryLaunchNuclear(world, factionEntity);
         }
     }
-
-    
 
     private void TryPlaceUnits(World world, Entity faction)
     {
@@ -164,7 +166,11 @@ public class AiSystem : ISystem
             {
                 targetLat = position.Latitude + (_random.NextDouble() * 2 - 1) * 5;
                 targetLon = position.Longitude + (_random.NextDouble() * 2 - 1) * 5;
-                if (!_terrainMap.IsSea(targetLat, targetLon)) continue; // don't try to beach itself
+
+                bool validPatrol = unitInfo.Domain == UnitDomain.Land
+                    ? _terrainMap.IsLand(targetLat, targetLon)
+                    : _terrainMap.IsSea(targetLat, targetLon);
+                if (!validPatrol) continue;
             }
 
             world.Set(unitEntity, new MoveOrderComponent { TargetLatitude = targetLat, TargetLongitude = targetLon });
@@ -175,6 +181,7 @@ public class AiSystem : ISystem
     {
         var defcon = world.Get<DefconComponent>(_defconEntity);
         if (defcon == null || defcon.Level > 1) return;
+        var diplomacy = world.Get<DiplomacyComponent>(_diplomacyEntity);
 
         foreach (var (launcherEntity, weapon, position, ownership) in world.Query<WeaponComponent, PositionComponent, OwnershipComponent>())
         {
@@ -190,7 +197,8 @@ public class AiSystem : ISystem
             foreach (var (cityEntity, city, cityPosition) in world.Query<CityComponent, PositionComponent>())
             {
                 var cityOwnership = world.Get<OwnershipComponent>(city.ParentTerritory);
-                if (cityOwnership?.Owner == faction || cityOwnership?.Owner == null) continue;
+                if (cityOwnership?.Owner is not { } cityFaction || cityFaction == faction) continue;
+                if (diplomacy != null && diplomacy.GetStance(faction, cityFaction) != RelationStance.War) continue;
 
                 double distanceKm = GeoMath.HaversineDistanceKm(position.Latitude, position.Longitude, cityPosition.Latitude, cityPosition.Longitude);
                 if (distanceKm <= bestDistance)

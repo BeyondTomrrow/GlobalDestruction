@@ -25,6 +25,7 @@ public class UnitDebugRenderer
         [UnitType.Submarine] = IconShape.Circle,
         [UnitType.Carrier] = IconShape.Square,
         [UnitType.Decoy] = IconShape.Cross,
+        [UnitType.Army] = IconShape.Plus,
     };
 
     private static readonly Dictionary<UnitType, int> SizeByType = new()
@@ -36,6 +37,7 @@ public class UnitDebugRenderer
         [UnitType.Submarine] = 10,
         [UnitType.Carrier] = 18,
         [UnitType.Decoy] = 10,
+        [UnitType.Army] = 10,
     };
 
     public UnitDebugRenderer(GraphicsDevice graphicsDevice) // drop mapWidth, mapHeight params

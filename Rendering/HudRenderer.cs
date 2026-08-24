@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using WorldNMilSim.Core;
 using WorldNMilSim.Components;
+using System.Collections.Generic;
 
 namespace WorldNMilSim.Rendering;
 
@@ -17,7 +18,7 @@ public class HudRenderer
         "Scroll: Zoom | Right-drag/Arrows: Pan | Tab: Debug reveal"
     };
 
-    public void Draw(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity? selectedUnit, Entity defconEntity, Entity tensionEntity, UnitType? placementSelection, SpriteFont font, GraphicsDevice device)
+    public void Draw(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity? selectedUnit, Entity defconEntity, Entity tensionEntity, Entity diplomacyEntity, UnitType? placementSelection, SpriteFont font, GraphicsDevice device)
     {
         DrawDefcon(spriteBatch, world, defconEntity, font);
 
@@ -27,12 +28,44 @@ public class HudRenderer
 
         DrawFactionStatus(spriteBatch, world, playerFaction, font);
         DrawKeybindLegend(spriteBatch, font, device);
+        DrawDiplomacy(spriteBatch, world, playerFaction, diplomacyEntity, font, device);
 
         if (placementSelection.HasValue)
             DrawShadowedText(spriteBatch, font, $"Placing: {placementSelection.Value} (click to place, Esc to cancel)", new Vector2(20, 140), Color.Cyan);
 
         if (selectedUnit.HasValue)
             DrawUnitPanel(spriteBatch, world, selectedUnit.Value, font, device);
+    }
+
+    private void DrawDiplomacy(SpriteBatch spriteBatch, World world, Entity playerFaction, Entity diplomacyEntity, SpriteFont font, GraphicsDevice device)
+    {
+        var diplomacy = world.Get<DiplomacyComponent>(diplomacyEntity);
+        if (diplomacy == null) return;
+
+        var lines = new List<(string text, Color color)>();
+        int index = 1;
+        foreach (var (factionEntity, faction) in world.Query<FactionComponent>())
+        {
+            if (faction.IsPlayerControlled) continue;
+
+            var stance = diplomacy.GetStance(playerFaction, factionEntity);
+            var stanceColor = stance switch
+            {
+                RelationStance.War => Color.Red,
+                RelationStance.Neutral => Color.Yellow,
+                _ => Color.LightGreen
+            };
+            lines.Add(($"F{index}: {faction.Name} - {stance}", stanceColor));
+            index++;
+        }
+
+        float x = device.Viewport.Width - 320;
+        float y = device.Viewport.Height - 20 - lines.Count * 20;
+        foreach (var (text, color) in lines)
+        {
+            DrawShadowedText(spriteBatch, font, text, new Vector2(x, y), color);
+            y += 20;
+        }
     }
 
     private void DrawDefcon(SpriteBatch spriteBatch, World world, Entity defconEntity, SpriteFont font)

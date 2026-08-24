@@ -31,6 +31,8 @@ public class Game1 : Game
     private Entity _playerFaction;
     private Entity _defconEntity;
     private Entity _tensionEntity;
+    private Entity _diplomacyEntity;
+    private List<Entity> _aiFactions = new();
 
     private bool _debugShowAllUnits;
     private MouseState _previousMouseState;
@@ -69,6 +71,9 @@ public class Game1 : Game
         _tensionEntity = _world.CreateEntity();
         _world.Set(_tensionEntity, new TensionComponent());
 
+        _diplomacyEntity = _world.CreateEntity();
+        _world.Set(_diplomacyEntity, new DiplomacyComponent());
+
         // Player faction - no starting units, place everything yourself.
         _playerFaction = _world.CreateEntity();
         _world.Set(_playerFaction, new FactionComponent { Name = "United Coalition", Color = Color.CornflowerBlue, IsPlayerControlled = true });
@@ -77,12 +82,24 @@ public class Game1 : Game
         _world.Get<OwnershipComponent>(_territories["na_east"])!.Owner = _playerFaction;
         _world.Get<OwnershipComponent>(_territories["na_west"])!.Owner = _playerFaction;
 
-        // Rival faction - AI-controlled, also starts with nothing and places its own force.
-        var rivalFaction = _world.CreateEntity();
-        _world.Set(rivalFaction, new FactionComponent { Name = "Red Bloc", Color = Color.OrangeRed, IsPlayerControlled = false });
-        _world.Set(rivalFaction, new PlacementBudgetComponent { Points = 500, RegenPerHour = 40 });
+        // Three AI factions, each starts with nothing and places its own force.
+        var redBloc = _world.CreateEntity();
+        _world.Set(redBloc, new FactionComponent { Name = "Red Bloc", Color = Color.OrangeRed, IsPlayerControlled = false });
+        _world.Set(redBloc, new PlacementBudgetComponent { Points = 500, RegenPerHour = 40 });
+        _world.Get<OwnershipComponent>(_territories["e_europe"])!.Owner = redBloc;
+        _aiFactions.Add(redBloc);
 
-        _world.Get<OwnershipComponent>(_territories["e_europe"])!.Owner = rivalFaction;
+        var southernAlliance = _world.CreateEntity();
+        _world.Set(southernAlliance, new FactionComponent { Name = "Southern Alliance", Color = Color.Gold, IsPlayerControlled = false });
+        _world.Set(southernAlliance, new PlacementBudgetComponent { Points = 500, RegenPerHour = 40 });
+        _world.Get<OwnershipComponent>(_territories["s_asia"])!.Owner = southernAlliance;
+        _aiFactions.Add(southernAlliance);
+
+        var easternPact = _world.CreateEntity();
+        _world.Set(easternPact, new FactionComponent { Name = "Eastern Pact", Color = Color.Purple, IsPlayerControlled = false });
+        _world.Set(easternPact, new PlacementBudgetComponent { Points = 500, RegenPerHour = 40 });
+        _world.Get<OwnershipComponent>(_territories["e_asia"])!.Owner = easternPact;
+        _aiFactions.Add(easternPact);
 
         base.Initialize();
     }
@@ -109,11 +126,11 @@ public class Game1 : Game
             .Add(new NuclearImpactSystem(_tensionEntity))
             .Add(new LogisticsSystem())
             .Add(new DetectionSystem())
-            .Add(new CombatSystem(_tensionEntity))
+            .Add(new CombatSystem(_tensionEntity, _diplomacyEntity))
             .Add(new DecoySystem())
             .Add(new ReinforcementSystem())
             .Add(new DefconSystem(_tensionEntity))
-            .Add(new AiSystem(_terrainMap, _defconEntity));
+            .Add(new AiSystem(_terrainMap, _defconEntity, _diplomacyEntity));
     }
 
     protected override void Update(GameTime gameTime)
@@ -204,7 +221,12 @@ public class Game1 : Game
         if (keyboardState.IsKeyDown(Keys.D4) && !_previousKeyboardState.IsKeyDown(Keys.D4)) _placementSelection = UnitType.Destroyer;
         if (keyboardState.IsKeyDown(Keys.D5) && !_previousKeyboardState.IsKeyDown(Keys.D5)) _placementSelection = UnitType.Submarine;
         if (keyboardState.IsKeyDown(Keys.D6) && !_previousKeyboardState.IsKeyDown(Keys.D6)) _placementSelection = UnitType.Carrier;
+        if (keyboardState.IsKeyDown(Keys.D7) && !_previousKeyboardState.IsKeyDown(Keys.D7)) _placementSelection = UnitType.Army;
         if (keyboardState.IsKeyDown(Keys.Escape) && !_previousKeyboardState.IsKeyDown(Keys.Escape)) _placementSelection = null;
+
+        if (keyboardState.IsKeyDown(Keys.F1) && !_previousKeyboardState.IsKeyDown(Keys.F1) && _aiFactions.Count > 0) CycleDiplomacy(0);
+        if (keyboardState.IsKeyDown(Keys.F2) && !_previousKeyboardState.IsKeyDown(Keys.F2) && _aiFactions.Count > 1) CycleDiplomacy(1);
+        if (keyboardState.IsKeyDown(Keys.F3) && !_previousKeyboardState.IsKeyDown(Keys.F3) && _aiFactions.Count > 2) CycleDiplomacy(2);
 
         bool cursorInWindow = mouseState.X >= 0 && mouseState.X < GraphicsDevice.Viewport.Width &&
                                mouseState.Y >= 0 && mouseState.Y < GraphicsDevice.Viewport.Height;
@@ -252,7 +274,7 @@ public class Game1 : Game
         _spriteBatch.Begin();
         _mapRenderer.DrawLabels(_spriteBatch, _world, _camera, _font);
 
-        _hud.Draw(_spriteBatch, _world, _playerFaction, _selectedUnit, _defconEntity, _tensionEntity, _placementSelection, _font, GraphicsDevice);
+        _hud.Draw(_spriteBatch, _world, _playerFaction, _selectedUnit, _defconEntity, _tensionEntity, _diplomacyEntity, _placementSelection, _font, GraphicsDevice);
 
         _spriteBatch.End();
 
@@ -305,11 +327,15 @@ public class Game1 : Game
         if (_world.Has<MovementComponent>(_selectedUnit.Value))
         {
             var unitInfo = _world.Get<UnitComponent>(_selectedUnit.Value);
-            if (unitInfo != null && unitInfo.Domain != UnitDomain.Land && _terrainMap.IsSea(lat, lon))
+            if (unitInfo != null)
             {
-                _world.Set(_selectedUnit.Value, new MoveOrderComponent { TargetLatitude = lat, TargetLongitude = lon });
+                bool validDestination = unitInfo.Domain == UnitDomain.Land
+                    ? _terrainMap.IsLand(lat, lon)
+                    : _terrainMap.IsSea(lat, lon);
+
+                if (validDestination)
+                    _world.Set(_selectedUnit.Value, new MoveOrderComponent { TargetLatitude = lat, TargetLongitude = lon });
             }
-            // else: destination is on land - order silently rejected
         }
     }
 
@@ -326,6 +352,7 @@ public class Game1 : Game
             UnitType.Destroyer => "destroyer",
             UnitType.Submarine => "submarine",
             UnitType.Carrier => "carrier",
+            UnitType.Army => "army",
             _ => null
         };
         if (defId == null) return;
@@ -346,6 +373,11 @@ public class Game1 : Game
         if (defcon == null || defcon.Level > 1) return; // not authorized until DEFCON 1
 
         NuclearStrikeLauncher.TryLaunch(_world, launcher, targetLat, targetLon);
+    }
+
+    private void CycleDiplomacy(int aiFactionIndex)
+    {
+        _world.Get<DiplomacyComponent>(_diplomacyEntity)?.CycleStance(_playerFaction, _aiFactions[aiFactionIndex]);
     }
 
     private void DeployDecoy(Entity unit)
